@@ -23,5 +23,5 @@ When setting up a fresh Linux installation, configuring everything from scratch 
 After a fresh Linux installation:
 1. Clone this repository:
    ```bash
-   git clone [https://github.com/rahibnahiyan-cyber/My-Personal.git](https://github.com/rahibnahiyan-cyber/My-Personal.git)
+   git clone https://github.com/rahibnahiyan-cyber/My-Personal.git
    cd My-Personal
