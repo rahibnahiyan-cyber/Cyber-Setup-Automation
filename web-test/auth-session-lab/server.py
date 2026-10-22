@@ -1,4 +1,3 @@
-
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs
 import secrets
@@ -42,6 +41,11 @@ sessions = {}
 
 
 class Handler(BaseHTTPRequestHandler):
+
+    def end_headers(self):
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        super().end_headers()
 
     def get_valid_session(self):
         cookie = self.headers.get("Cookie")
