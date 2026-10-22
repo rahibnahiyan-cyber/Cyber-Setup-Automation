@@ -12,9 +12,9 @@ When setting up a fresh Linux installation, configuring everything from scratch 
 
 * **🛠️ Post-Installation Checklist:** Step-by-step instructions and commands to execute immediately after installing Linux.
 * **📂 Core Configuration Files (Dotfiles):** Custom shell configurations, shortcuts, and desktop environment settings (KDE Plasma).
-* **💻 Programming & Lab Tests:** Practice scripts, web testing setups, and authentication lab environments (`web-test/auth-session-lab`).
-* **📖 Command Cheatsheets & Docs:** Essential Linux terminal commands and reference documents (`Linux Commands.docx`).
-* **🔐 Cyber Security Resources:** Personal notes, security policies (`SECURITY.md`), and lab materials for ethical hacking and penetration testing.
+* **💻 Programming & Lab Tests:** Practice scripts, web testing setups, and authentication lab environments.
+* **📖 Command Cheatsheets & Docs:** Essential Linux terminal commands and reference documents.
+* **🔐 Cyber Security Resources:** Personal notes, security policies, and lab materials for ethical hacking and penetration testing.
 
 ---
 
