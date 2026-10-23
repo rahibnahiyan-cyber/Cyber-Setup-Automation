@@ -1,24 +1,24 @@
-# 🚀 My Personal - Kali Setup & Security Lab
+# 🔐 Cyber Setup Automation
 
-This repository is a personal collection of scripts, environment setup files, and practice projects used for Linux system configuration and web application security testing.
+This repository contains a personal collection of automation scripts, environment bootstrap helpers, and security learning labs for Kali Linux setup and web application security testing.
 
-It contains the main setup scripts used for installing and configuring a Kali Linux environment, plus smaller learning and testing projects related to Python scripting and authentication/session security.
+It is designed to help automate the initial configuration of a Kali-based workstation and includes small practice projects for Python scripting, authentication testing, and session security analysis.
 
-## Repository Overview
+## Overview
 
-This repo includes:
+This project includes:
 
 - Kali Linux installer for XFCE / GNOME / KDE Plasma
 - Termux-based Kali bootstrap helper
-- Desktop wallpaper collection
-- Programming practice scripts
-- Authentication and session security test lab
-- Security notes and supporting files
+- Wallpaper collection for desktop customization
+- Python scripting practice files
+- Authentication and session security lab
+- Supporting notes and project files
 
-## Main Files and Folders
+## Repository Structure
 
 ```text
-My-Personal/
+Cyber-Setup-Automation/
 ├── README.md
 ├── LICENSE
 ├── SECURITY.md
@@ -46,19 +46,19 @@ My-Personal/
 
 ## 1) Kali Linux Installer
 
-The main installer script is:
+Main script:
 
 - `install.sh`
 
-This script is designed for Kali Linux and supports the following desktop environments:
+This script is intended for Kali Linux and supports the following desktop environments:
 
 - XFCE
 - GNOME
 - KDE Plasma
 
-It can install or configure:
+It can install and configure:
 
-- package updates and upgrades
+- system package upgrades
 - zram swap
 - VS Code
 - VirtualBox
@@ -70,8 +70,8 @@ It can install or configure:
 ### Usage
 
 ```bash
-git clone https://github.com/rahibnahiyan-cyber/My-Personal.git
-cd My-Personal
+git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
+cd Cyber-Setup-Automation
 bash install.sh
 ```
 
@@ -87,44 +87,44 @@ bash install.sh --skip-virtualbox
 
 ## 2) Termux Setup Helper
 
-The repository also contains:
+This repository also contains:
 
 - `install_termux.sh`
 
-This helper script is used to prepare a Termux environment and bootstrap a Kali Linux installation inside it.
+This helper prepares a Termux environment and can be used to bootstrap a Kali Linux installation inside it.
 
 ### Usage
 
 ```bash
-git clone https://github.com/rahibnahiyan-cyber/My-Personal.git
-cd My-Personal
+git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
+cd Cyber-Setup-Automation
 bash install_termux.sh
 ```
 
 ## 3) Programming Practice
 
-The `programming-test/` folder contains small Python practice scripts and learning exercises.
+The `programming-test/` folder contains small Python scripts and experiments for logic testing and scripting practice.
 
 Example:
 
 - `programming-test/practice.py`
 
-This section is mainly for testing code logic, quick experiments, and improving scripting skills.
+This section is mainly used for quick experiments, learning, and improving Python automation skills.
 
 ## 4) Web Authentication / Session Security Lab
 
-The `web-test/auth-session-lab/` folder is a focused security testing environment that includes:
+The `web-test/auth-session-lab/` folder is a focused environment for testing authentication and session security behaviors. It includes:
 
-- `server.py` - main web app for authentication/session testing
-- `run_all_tests.py` - runs the test suite
-- `test_invalid_login.py` - invalid login handling
-- `test_logout.py` - logout behavior
-- `test_profile_access.py` - profile access restrictions
-- `test_admin_access.py` - admin authorization checks
-- `test_session_rotation.py` - session rotation and regeneration
-- `test_session_timeout.py` - timeout behavior
-- `test_security_headers.py` - HTTP security headers validation
-- cookie and timeout sample files for testing real-world session scenarios
+- `server.py` — main web application for auth/session testing
+- `run_all_tests.py` — runs the test suite
+- `test_invalid_login.py` — invalid login handling
+- `test_logout.py` — logout behavior
+- `test_profile_access.py` — profile access restrictions
+- `test_admin_access.py` — admin authorization checks
+- `test_session_rotation.py` — session rotation and regeneration
+- `test_session_timeout.py` — timeout behavior
+- `test_security_headers.py` — HTTP security headers validation
+- cookie and timeout sample files for realistic testing scenarios
 
 This lab is useful for understanding:
 
@@ -133,29 +133,35 @@ This lab is useful for understanding:
 - logout handling
 - authorization checks
 - secure cookie configuration
-- timeout and session expiration
-- security header enforcement
+- timeout and expiration
+- header-based security enforcement
 
-## 5) Personal Use and Learning
+## 5) Purpose
 
-This repository is primarily for personal setup automation and cybersecurity learning. It combines practical system administration tasks with web security concepts and coding exercises.
+This repository is intended for:
+
+- fresh Kali Linux setup automation
+- developer environment provisioning
+- personal cybersecurity learning
+- web security testing exercises
+- Python and shell scripting practice
 
 ## License
 
-This project is licensed under the terms provided in the `LICENSE` file.
+This project is licensed under the terms described in the `LICENSE` file.
 
 ## Security Policy
 
-For security-related concerns, see `SECURITY.md`.
+For security-related concerns, refer to `SECURITY.md`.
 
 ## Quick Start
 
 ```bash
-git clone https://github.com/rahibnahiyan-cyber/My-Personal.git
-cd My-Personal
+git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
+cd Cyber-Setup-Automation
 ```
 
-Then choose the relevant setup:
+Then choose the installation path you need:
 
 ```bash
 bash install.sh
@@ -167,4 +173,4 @@ or
 bash install_termux.sh
 ```
 
-This repository is best used as a personal toolkit for fresh Kali setup, scripting practice, and authentication/security testing.
+This project is best used as a toolkit for Kali setup, system automation, and web security research.
