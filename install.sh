@@ -102,8 +102,19 @@ is_supported_distro() {
     esac
 }
 
-has_systemd() {
-    [ -d /run/systemd/system ] || [ -f /etc/systemd/system ] || command -v systemctl >/dev/null 2>&1
+apt_package_exists() {
+    apt-cache policy "$1" 2>/dev/null | grep -q "Candidate:" || apt-cache search --names-only "$1" 2>/dev/null | grep -qi "^${1}$"
+}
+
+install_package_if_available() {
+    local pkg="$1"
+
+    if ! apt_package_exists "${pkg}"; then
+        warn "Package not available in this repository: ${pkg}. Skipping."
+        return 0
+    fi
+
+    install_packages "${pkg}"
 }
 
 ensure_apt_available() {
@@ -114,6 +125,7 @@ ensure_apt_available() {
 
 apt_update() {
     log "Updating package lists..."
+
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get update -qq || fail "apt-get update failed."
     else
@@ -128,6 +140,7 @@ install_packages() {
     fi
 
     log "Installing packages: ${packages[*]}"
+
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get install -y --no-install-recommends "${packages[@]}" || fail "Failed to install required packages: ${packages[*]}"
     else
@@ -139,6 +152,7 @@ download_file() {
     local url="$1"
     local output="$2"
     log "Downloading: ${url}"
+
     if command -v curl >/dev/null 2>&1; then
         curl -fL --retry 3 --retry-delay 2 --output "${output}" "${url}" || fail "Download failed: ${url}"
     else
@@ -184,6 +198,8 @@ configure_zram() {
     if ! command -v zramctl >/dev/null 2>&1; then
         warn "zramctl not found; zram-tools may still install successfully."
     fi
+
+    install_package_if_available "zram-tools"
 
     local zram_conf="/etc/default/zramswap"
     if [ ! -f "${zram_conf}" ]; then
@@ -245,7 +261,7 @@ install_vscode() {
     fi
 
     add_microsoft_repo
-    install_packages "code"
+    install_package_if_available "code"
     success "VS Code installation completed."
 }
 
@@ -257,7 +273,13 @@ install_virtualbox() {
         return 0
     fi
 
-    install_packages "build-essential" "dkms" "linux-headers-$(uname -r)" "wget" "curl" "gnupg"
+    install_package_if_available "build-essential"
+    install_package_if_available "dkms"
+    install_package_if_available "linux-headers-$(uname -r)"
+    install_package_if_available "wget"
+    install_package_if_available "curl"
+    install_package_if_available "gnupg"
+
     add_virtualbox_repo
 
     if [ -n "${SUDO}" ]; then
@@ -329,24 +351,34 @@ install_obs() {
     log "Installing OBS Studio..."
 
     if ! command -v flatpak >/dev/null 2>&1; then
-        install_packages "flatpak"
+        install_package_if_available "flatpak"
     fi
 
-    if ! flatpak remote-list 2>/dev/null | grep -q "flathub"; then
-        if [ -n "${SUDO}" ]; then
-            ${SUDO} flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || warn "Failed to add Flathub remote. Continuing..."
-        else
-            flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || warn "Failed to add Flathub remote. Continuing..."
+    if command -v flatpak >/dev/null 2>&1; then
+        if ! flatpak remote-list 2>/dev/null | grep -q "flathub"; then
+            if [ -n "${SUDO}" ]; then
+                ${SUDO} flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || warn "Failed to add Flathub remote. Continuing..."
+            else
+                flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || warn "Failed to add Flathub remote. Continuing..."
+            fi
         fi
-    fi
 
-    flatpak install -y flathub com.obsproject.Studio || fail "Failed to install OBS Studio via Flatpak."
-    success "OBS Studio installation completed."
+        flatpak install -y flathub com.obsproject.Studio || fail "Failed to install OBS Studio via Flatpak."
+        success "OBS Studio installation completed."
+    else
+        warn "Flatpak is not available on this system; skipping OBS Studio installation."
+    fi
 }
 
 prepare_system() {
     log "Preparing system packages..."
-    install_packages "wget" "curl" "ca-certificates" "gnupg" "software-properties-common" "lsb-release" "apt-transport-https"
+
+    for pkg in wget curl ca-certificates gnupg lsb-release; do
+        install_package_if_available "${pkg}"
+    done
+
+    install_package_if_available "software-properties-common"
+    install_package_if_available "apt-transport-https"
 }
 
 main() {
@@ -406,7 +438,6 @@ main() {
     apt_update
 
     if [ "${install_zram}" = true ]; then
-        install_packages "zram-tools"
         configure_zram
     else
         warn "Skipping zram configuration because --skip-zram was used."
