@@ -43,7 +43,7 @@ confirm_continue() {
     header "Termux + Kali NetHunter Setup"
     echo -e "${BLUE}This script will:${RESET}"
     echo "  1) Run pkg update"
-    echo "  2) Enable storage access"
+    echo "  2) Check storage access"
     echo "  3) Install missing dependencies"
     echo "  4) Download and run the official NetHunter rootless installer"
     echo ""
@@ -73,6 +73,21 @@ is_installed() {
     return 1
 }
 
+is_storage_ready() {
+    if [ -d "/sdcard" ] || [ -d "/storage/emulated/0" ]; then
+        return 0
+    fi
+    return 1
+}
+
+run_with_log() {
+    local label="$1"
+    shift
+    info "$label"
+    "$@" 2>&1 | tee -a "$LOG_FILE"
+    return ${PIPESTATUS[0]}
+}
+
 install_or_skip() {
     local pkg_name="$1"
 
@@ -82,13 +97,17 @@ install_or_skip() {
     fi
 
     info "Installing: $pkg_name"
-    if pkg install -y "$pkg_name"; then
+    if run_with_log "pkg install -y $pkg_name" pkg install -y "$pkg_name"; then
         success "Installed via pkg: $pkg_name"
         return 0
     fi
 
     warn "pkg install failed for $pkg_name. Trying apt fallback..."
-    if apt update >/dev/null 2>&1 && apt install -y "$pkg_name"; then
+    if run_with_log "apt update" apt update; then
+        :
+    fi
+
+    if run_with_log "apt install -y $pkg_name" apt install -y "$pkg_name"; then
         success "Installed via apt: $pkg_name"
         return 0
     fi
@@ -97,17 +116,33 @@ install_or_skip() {
     return 1
 }
 
+setup_storage() {
+    if is_storage_ready; then
+        info "Skipped: storage access already configured"
+        return 0
+    fi
+
+    info "Configuring storage access..."
+    if run_with_log "termux-setup-storage" termux-setup-storage; then
+        success "Storage access configured"
+        return 0
+    fi
+
+    warn "termux-setup-storage failed; continuing..."
+    return 1
+}
+
 run_official_installer() {
     if command -v curl >/dev/null 2>&1; then
         info "Using official Kali NetHunter install URL via curl..."
-        if curl -fsSL "$INSTALLER_URL" | bash; then
+        if curl -fsSL "$INSTALLER_URL" 2>&1 | tee -a "$LOG_FILE" | bash; then
             return 0
         fi
     fi
 
     if command -v wget >/dev/null 2>&1; then
         info "Using fallback wget method..."
-        if wget -qO- "$INSTALLER_URL" | bash; then
+        if wget -qO- "$INSTALLER_URL" 2>&1 | tee -a "$LOG_FILE" | bash; then
             return 0
         fi
     fi
@@ -132,17 +167,24 @@ main() {
     info "Starting Termux setup..."
 
     info "Running pkg update..."
-    pkg update >/dev/null 2>&1 || warn "pkg update failed; continuing..."
+    if run_with_log "pkg update" pkg update; then
+        :
+    else
+        warn "pkg update failed; continuing..."
+    fi
 
-    info "Enabling storage access..."
-    termux-setup-storage >/dev/null 2>&1 || warn "termux-setup-storage failed; continuing..."
+    setup_storage
 
     for pkg_name in nmap curl wget git proot termux-services; do
         install_or_skip "$pkg_name" || warn "Continuing without $pkg_name"
     done
 
     info "Running final pkg update..."
-    pkg update >/dev/null 2>&1 || warn "Final pkg update failed; continuing..."
+    if run_with_log "pkg update" pkg update; then
+        :
+    else
+        warn "Final pkg update failed; continuing..."
+    fi
 
     info "Installing Kali NetHunter rootless from official URL..."
     if run_official_installer; then
