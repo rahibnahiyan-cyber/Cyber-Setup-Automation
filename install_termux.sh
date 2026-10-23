@@ -139,7 +139,7 @@ main() {
     info "Enabling storage access..."
     termux-setup-storage >/dev/null 2>&1 || warn "termux-setup-storage failed; continuing..."
 
-    for pkg_name in nmap curl wget git proot; do
+    for pkg_name in nmap curl wget git proot termux-services; do
         install_or_skip "$pkg_name" || warn "Continuing without $pkg_name"
     done
 
