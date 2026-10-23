@@ -74,6 +74,23 @@ detect_distro() {
     fi
 }
 
+normalize_init_system() {
+    case "${INIT_SYSTEM}" in
+        systemd)
+            INIT_MODE="systemd"
+            ;;
+        openrc)
+            INIT_MODE="openrc"
+            ;;
+        runit)
+            INIT_MODE="runit"
+            ;;
+        *)
+            INIT_MODE="unknown"
+            ;;
+    esac
+}
+
 is_supported_distro() {
     case "${DISTRO_ID}" in
         debian|ubuntu|kali|linuxmint|antix|antiX)
@@ -168,48 +185,50 @@ configure_zram() {
         warn "zramctl not found; zram-tools may still install successfully."
     fi
 
-    if ! has_systemd; then
-        warn "Systemd not detected (${INIT_SYSTEM}). Skipping zram service activation because this init system is not systemd-based."
-        return 0
-    fi
-
-    if [ -f /etc/systemd/zram-generator.conf ]; then
-        if ! grep -q "\[zram0\]" /etc/systemd/zram-generator.conf 2>/dev/null; then
-            cat <<'EOF' | tee /etc/systemd/zram-generator.conf >/dev/null
-[zram0]
-zram-size = min(ram / 2, 4096)
-compression-algorithm = zstd
-swap-priority = 100
-fs-type = swap
-EOF
-        fi
+    local zram_conf="/etc/default/zramswap"
+    if [ ! -f "${zram_conf}" ]; then
+        printf 'ALGO=zstd\nPERCENT=50\n' | tee "${zram_conf}" >/dev/null
     else
-        local zram_conf="/etc/default/zramswap"
-        if [ -f "${zram_conf}" ]; then
-            if ! grep -Eq '^[[:space:]]*ALGO[[:space:]]*=' "${zram_conf}" || ! grep -Eq 'ALGO=.*zstd' "${zram_conf}"; then
-                echo "ALGO=zstd" >> "${zram_conf}"
-            fi
-            if ! grep -Eq '^[[:space:]]*PERCENT[[:space:]]*=' "${zram_conf}"; then
-                echo "PERCENT=50" >> "${zram_conf}"
-            fi
-        else
-            cat <<'EOF' | tee "${zram_conf}" >/dev/null
-ALGO=zstd
-PERCENT=50
-EOF
+        if ! grep -Eq '^[[:space:]]*ALGO[[:space:]]*=' "${zram_conf}" || ! grep -Eq 'ALGO=.*zstd' "${zram_conf}"; then
+            echo "ALGO=zstd" >> "${zram_conf}"
+        fi
+        if ! grep -Eq '^[[:space:]]*PERCENT[[:space:]]*=' "${zram_conf}"; then
+            echo "PERCENT=50" >> "${zram_conf}"
         fi
     fi
 
-    if systemctl list-unit-files 2>/dev/null | grep -q '^zramswap.service'; then
+    if [ "${INIT_MODE}" = "systemd" ] && command -v systemctl >/dev/null 2>&1; then
         if [ -n "${SUDO}" ]; then
             ${SUDO} systemctl daemon-reload >/dev/null 2>&1 || true
-            ${SUDO} systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled."
+            ${SUDO} systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled on systemd."
         else
             systemctl daemon-reload >/dev/null 2>&1 || true
-            systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled."
+            systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled on systemd."
+        fi
+    elif [ "${INIT_MODE}" = "runit" ] || [ "${INIT_MODE}" = "openrc" ] || [ "${INIT_MODE}" = "unknown" ]; then
+        if command -v zramswap >/dev/null 2>&1; then
+            if [ -n "${SUDO}" ]; then
+                ${SUDO} zramswap start >/dev/null 2>&1 || warn "zramswap startup command failed."
+            else
+                zramswap start >/dev/null 2>&1 || warn "zramswap startup command failed."
+            fi
+        elif command -v service >/dev/null 2>&1; then
+            if [ -n "${SUDO}" ]; then
+                ${SUDO} service zramswap start >/dev/null 2>&1 || warn "service zramswap start failed."
+            else
+                service zramswap start >/dev/null 2>&1 || warn "service zramswap start failed."
+            fi
+        elif command -v rc-service >/dev/null 2>&1; then
+            if [ -n "${SUDO}" ]; then
+                ${SUDO} rc-service zramswap start >/dev/null 2>&1 || warn "rc-service zramswap start failed."
+            else
+                rc-service zramswap start >/dev/null 2>&1 || warn "rc-service zramswap start failed."
+            fi
+        else
+            warn "No zram startup mechanism found for this init system. Config file was created; zram may start at next boot."
         fi
     else
-        warn "zramswap service not present; zram config file was created but no service was started."
+        warn "No supported init system detected; zram config file created but service not started."
     fi
 
     swapon --show 2>/dev/null || true
@@ -309,9 +328,7 @@ install_google_chrome() {
 install_obs() {
     log "Installing OBS Studio..."
 
-    if command -v flatpak >/dev/null 2>&1; then
-        :
-    else
+    if ! command -v flatpak >/dev/null 2>&1; then
         install_packages "flatpak"
     fi
 
@@ -375,6 +392,7 @@ main() {
 
     require_root_or_sudo
     detect_distro
+    normalize_init_system
     ensure_apt_available
 
     if ! is_supported_distro; then
@@ -382,7 +400,8 @@ main() {
     fi
 
     log "Detected OS: ${DISTRO_NAME} (${DISTRO_ID} ${VERSION_ID})"
-    log "Detected init system: ${INIT_SYSTEM}"
+    log "Detected init system: ${INIT_SYSTEM} (${INIT_MODE})"
+
     prepare_system
     apt_update
 
