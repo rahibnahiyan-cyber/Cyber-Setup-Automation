@@ -35,7 +35,24 @@ def test_content_type_options_header():
         )
 
         print("PASS: X-Content-Type-Options is nosniff")
+        
+        frame_header = response.getheader("X-Frame-Options")
 
+        assert frame_header == "DENY", (
+            f"Expected 'DENY', got {frame_header!r}"
+        )
+ 
+        print("PASS: X-Frame-Options is DENY")
+
+        referrer_header = response.getheader("Referrer-Policy")
+
+        assert referrer_header == "strict-origin-when-cross-origin", (
+            f"Expected 'strict-origin-when-cross-origin', "
+            f"got {referrer_header!r}"
+        )
+
+        print("PASS: Referrer-Policy is configured correctly")
+        
         connection.close()
 
     finally:
