@@ -35,6 +35,8 @@ usage() {
     cat <<'EOF'
 Usage: install.sh [options]
 
+This installer is designed ONLY for Kali Linux running XFCE, GNOME, or KDE Plasma.
+
 Options:
   --skip-zram         Skip zram configuration
   --skip-vscode       Skip VS Code installation
@@ -42,8 +44,6 @@ Options:
   --skip-chrome       Skip Google Chrome installation
   --skip-obs          Skip OBS Studio installation
   --help              Show this help
-
-This installer supports Debian, Ubuntu, Kali Linux, Linux Mint, and antiX.
 EOF
 }
 
@@ -74,32 +74,37 @@ detect_distro() {
     fi
 }
 
-normalize_init_system() {
-    case "${INIT_SYSTEM}" in
-        systemd)
-            INIT_MODE="systemd"
+detect_desktop_environment() {
+    if [ -n "${XDG_CURRENT_DESKTOP:-}" ]; then
+        DE_NAME="${XDG_CURRENT_DESKTOP}"
+    elif [ -n "${DESKTOP_SESSION:-}" ]; then
+        DE_NAME="${DESKTOP_SESSION}"
+    else
+        DE_NAME="unknown"
+    fi
+
+    case "${DE_NAME,,}" in
+        xfce|xfce4|xfce-session)
+            DE_NAME="XFCE"
             ;;
-        openrc)
-            INIT_MODE="openrc"
+        gnome|gnome-shell)
+            DE_NAME="GNOME"
             ;;
-        runit)
-            INIT_MODE="runit"
+        plasma|kde|plasma5|plasma6)
+            DE_NAME="KDE Plasma"
             ;;
         *)
-            INIT_MODE="unknown"
+            DE_NAME="unsupported"
             ;;
     esac
 }
 
 is_supported_distro() {
-    case "${DISTRO_ID}" in
-        debian|ubuntu|kali|linuxmint|antix|antiX)
-            return 0
-            ;;
-        *)
-            return 1
-            ;;
-    esac
+    [ "${DISTRO_ID}" = "kali" ]
+}
+
+is_supported_desktop() {
+    [ "${DE_NAME}" = "XFCE" ] || [ "${DE_NAME}" = "GNOME" ] || [ "${DE_NAME}" = "KDE Plasma" ]
 }
 
 apt_package_exists() {
@@ -110,7 +115,7 @@ install_package_if_available() {
     local pkg="$1"
 
     if ! apt_package_exists "${pkg}"; then
-        warn "Package not available in this repository: ${pkg}. Skipping."
+        warn "Package not available in this Kali repository: ${pkg}. Skipping."
         return 0
     fi
 
@@ -119,7 +124,7 @@ install_package_if_available() {
 
 ensure_apt_available() {
     if ! command -v apt-get >/dev/null 2>&1; then
-        fail "This script requires apt-get on a Debian/Ubuntu/Kali-based system."
+        fail "This script requires apt-get on Kali Linux."
     fi
 }
 
@@ -213,38 +218,16 @@ configure_zram() {
         fi
     fi
 
-    if [ "${INIT_MODE}" = "systemd" ] && command -v systemctl >/dev/null 2>&1; then
+    if command -v systemctl >/dev/null 2>&1; then
         if [ -n "${SUDO}" ]; then
             ${SUDO} systemctl daemon-reload >/dev/null 2>&1 || true
-            ${SUDO} systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled on systemd."
+            ${SUDO} systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled on this system."
         else
             systemctl daemon-reload >/dev/null 2>&1 || true
-            systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled on systemd."
-        fi
-    elif [ "${INIT_MODE}" = "runit" ] || [ "${INIT_MODE}" = "openrc" ] || [ "${INIT_MODE}" = "unknown" ]; then
-        if command -v zramswap >/dev/null 2>&1; then
-            if [ -n "${SUDO}" ]; then
-                ${SUDO} zramswap start >/dev/null 2>&1 || warn "zramswap startup command failed."
-            else
-                zramswap start >/dev/null 2>&1 || warn "zramswap startup command failed."
-            fi
-        elif command -v service >/dev/null 2>&1; then
-            if [ -n "${SUDO}" ]; then
-                ${SUDO} service zramswap start >/dev/null 2>&1 || warn "service zramswap start failed."
-            else
-                service zramswap start >/dev/null 2>&1 || warn "service zramswap start failed."
-            fi
-        elif command -v rc-service >/dev/null 2>&1; then
-            if [ -n "${SUDO}" ]; then
-                ${SUDO} rc-service zramswap start >/dev/null 2>&1 || warn "rc-service zramswap start failed."
-            else
-                rc-service zramswap start >/dev/null 2>&1 || warn "rc-service zramswap start failed."
-            fi
-        else
-            warn "No zram startup mechanism found for this init system. Config file was created; zram may start at next boot."
+            systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled on this system."
         fi
     else
-        warn "No supported init system detected; zram config file created but service not started."
+        warn "Systemd was not detected. zram config has been written, but service activation was skipped."
     fi
 
     swapon --show 2>/dev/null || true
@@ -366,7 +349,7 @@ install_obs() {
         flatpak install -y flathub com.obsproject.Studio || fail "Failed to install OBS Studio via Flatpak."
         success "OBS Studio installation completed."
     else
-        warn "Flatpak is not available on this system; skipping OBS Studio installation."
+        warn "Flatpak is not available on this Kali system; skipping OBS Studio installation."
     fi
 }
 
@@ -418,21 +401,26 @@ main() {
 
     echo
     echo "=============================================="
-    echo "  Debian/Ubuntu/Kali Linux Tool Installer"
+    echo "  Kali Linux Installer for XFCE / GNOME / KDE"
     echo "=============================================="
     echo
 
     require_root_or_sudo
     detect_distro
-    normalize_init_system
+    detect_desktop_environment
     ensure_apt_available
 
     if ! is_supported_distro; then
-        fail "Unsupported distribution: ${DISTRO_NAME} (${DISTRO_ID}). Supported: Debian, Ubuntu, Kali, Linux Mint, antiX."
+        fail "This installer is only for Kali Linux. Detected: ${DISTRO_NAME} (${DISTRO_ID})."
+    fi
+
+    if ! is_supported_desktop; then
+        fail "This installer supports only XFCE, GNOME, and KDE Plasma. Detected desktop: ${DE_NAME}."
     fi
 
     log "Detected OS: ${DISTRO_NAME} (${DISTRO_ID} ${VERSION_ID})"
-    log "Detected init system: ${INIT_SYSTEM} (${INIT_MODE})"
+    log "Detected desktop environment: ${DE_NAME}"
+    log "Detected init system: ${INIT_SYSTEM}"
 
     prepare_system
     apt_update
@@ -471,6 +459,7 @@ main() {
     success "All selected software installation steps completed successfully."
     echo
     echo "Important:"
+    echo "  - This installer is restricted to Kali Linux only."
     echo "  - Reboot is intentionally not executed automatically."
     echo "  - Please reboot manually when appropriate."
     echo
