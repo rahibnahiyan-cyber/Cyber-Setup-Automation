@@ -46,6 +46,7 @@ Options:
   --skip-virtualbox   Skip VirtualBox installation
   --skip-chrome       Skip Google Chrome installation
   --skip-obs          Skip OBS Studio installation
+  --verify            Run verification checks only
   --help              Show this help
 EOF
 }
@@ -414,12 +415,57 @@ prepare_system() {
     install_package_if_available "apt-transport-https"
 }
 
+verify_installation() {
+    echo
+    echo "=============================================="
+    echo "  Verification Checks"
+    echo "=============================================="
+    echo
+
+    if command -v code >/dev/null 2>&1; then
+        echo "[OK] VS Code: $(code --version | head -n 1)"
+    else
+        echo "[MISSING] VS Code: not found"
+    fi
+
+    if command -v google-chrome >/dev/null 2>&1; then
+        echo "[OK] Google Chrome: $(google-chrome --version 2>/dev/null || echo 'installed')"
+    else
+        echo "[MISSING] Google Chrome: not found"
+    fi
+
+    if command -v VBoxManage >/dev/null 2>&1; then
+        echo "[OK] VirtualBox: $(VBoxManage --version 2>/dev/null || echo 'installed')"
+    else
+        echo "[MISSING] VirtualBox: not found"
+    fi
+
+    if flatpak list --installed 2>/dev/null | grep -qi "com.obsproject.Studio"; then
+        echo "[OK] OBS Studio: installed"
+    else
+        echo "[MISSING] OBS Studio: not found"
+    fi
+
+    if command -v zramctl >/dev/null 2>&1; then
+        echo "[OK] zramctl:"
+        zramctl 2>/dev/null || true
+    else
+        echo "[MISSING] zramctl: not found"
+    fi
+
+    echo
+    echo "[INFO] Swap status:"
+    swapon --show 2>/dev/null || echo "No active swap detected."
+    echo
+}
+
 main() {
     local install_zram=true
     local install_vscode=true
     local install_virtualbox=true
     local install_chrome=true
     local install_obs=true
+    local verify_only=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -438,6 +484,9 @@ main() {
             --skip-obs)
                 install_obs=false
                 ;;
+            --verify)
+                verify_only=true
+                ;;
             --help)
                 usage
                 exit 0
@@ -448,6 +497,14 @@ main() {
         esac
         shift
     done
+
+    if [ "${verify_only}" = true ]; then
+        require_root_or_sudo
+        detect_distro
+        detect_desktop_environment
+        verify_installation
+        exit 0
+    fi
 
     echo
     echo "=============================================="
