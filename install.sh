@@ -12,6 +12,7 @@ BLUE='\033[34m'
 NC='\033[0m'
 
 ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
+INIT_SYSTEM="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || echo unknown)"
 
 log() {
     echo -e "${BLUE}${LOG_PREFIX} $1${NC}"
@@ -42,7 +43,7 @@ Options:
   --skip-obs          Skip OBS Studio installation
   --help              Show this help
 
-This installer supports Debian, Ubuntu, and Kali Linux.
+This installer supports Debian, Ubuntu, Kali Linux, Linux Mint, and antiX.
 EOF
 }
 
@@ -75,13 +76,17 @@ detect_distro() {
 
 is_supported_distro() {
     case "${DISTRO_ID}" in
-        debian|ubuntu|kali|linuxmint)
+        debian|ubuntu|kali|linuxmint|antix|antiX)
             return 0
             ;;
         *)
             return 1
             ;;
     esac
+}
+
+has_systemd() {
+    [ -d /run/systemd/system ] || [ -f /etc/systemd/system ] || command -v systemctl >/dev/null 2>&1
 }
 
 ensure_apt_available() {
@@ -161,6 +166,11 @@ configure_zram() {
 
     if ! command -v zramctl >/dev/null 2>&1; then
         warn "zramctl not found; zram-tools may still install successfully."
+    fi
+
+    if ! has_systemd; then
+        warn "Systemd not detected (${INIT_SYSTEM}). Skipping zram service activation because this init system is not systemd-based."
+        return 0
     fi
 
     if [ -f /etc/systemd/zram-generator.conf ]; then
@@ -368,32 +378,43 @@ main() {
     ensure_apt_available
 
     if ! is_supported_distro; then
-        fail "Unsupported distribution: ${DISTRO_NAME} (${DISTRO_ID}). Supported: Debian, Ubuntu, Kali, Linux Mint."
+        fail "Unsupported distribution: ${DISTRO_NAME} (${DISTRO_ID}). Supported: Debian, Ubuntu, Kali, Linux Mint, antiX."
     fi
 
     log "Detected OS: ${DISTRO_NAME} (${DISTRO_ID} ${VERSION_ID})"
+    log "Detected init system: ${INIT_SYSTEM}"
     prepare_system
     apt_update
 
     if [ "${install_zram}" = true ]; then
         install_packages "zram-tools"
         configure_zram
+    else
+        warn "Skipping zram configuration because --skip-zram was used."
     fi
 
     if [ "${install_vscode}" = true ]; then
         install_vscode
+    else
+        warn "Skipping VS Code because --skip-vscode was used."
     fi
 
     if [ "${install_virtualbox}" = true ]; then
         install_virtualbox
+    else
+        warn "Skipping VirtualBox because --skip-virtualbox was used."
     fi
 
     if [ "${install_chrome}" = true ]; then
         install_google_chrome
+    else
+        warn "Skipping Google Chrome because --skip-chrome was used."
     fi
 
     if [ "${install_obs}" = true ]; then
         install_obs
+    else
+        warn "Skipping OBS Studio because --skip-obs was used."
     fi
 
     echo
