@@ -46,6 +46,8 @@ Options:
   --skip-virtualbox   Skip VirtualBox installation
   --skip-chrome       Skip Google Chrome installation
   --skip-obs          Skip OBS Studio installation
+  --skip-kdenlive     Skip Kdenlive installation
+  --skip-libreoffice  Skip LibreOffice installation
   --verify            Run verification checks only
   --help              Show this help
 EOF
@@ -149,6 +151,20 @@ apt_update() {
     else
         apt-get update -qq || fail "apt-get update failed."
     fi
+}
+
+full_system_upgrade() {
+    log "Running full system upgrade..."
+
+    if [ -n "${SUDO}" ]; then
+        ${SUDO} apt-get update -qq || fail "apt-get update failed."
+        ${SUDO} apt-get full-upgrade -y --no-install-recommends || fail "apt-get full-upgrade failed."
+    else
+        apt-get update -qq || fail "apt-get update failed."
+        apt-get full-upgrade -y --no-install-recommends || fail "apt-get full-upgrade failed."
+    fi
+
+    success "Full system upgrade completed."
 }
 
 install_packages() {
@@ -404,6 +420,30 @@ install_obs() {
     fi
 }
 
+install_kdenlive() {
+    log "Installing Kdenlive..."
+
+    if is_package_installed "kdenlive"; then
+        success "Kdenlive is already installed. Skipping."
+        return 0
+    fi
+
+    install_package_if_available "kdenlive"
+    success "Kdenlive installation completed."
+}
+
+install_libreoffice() {
+    log "Installing LibreOffice..."
+
+    if is_package_installed "libreoffice"; then
+        success "LibreOffice is already installed. Skipping."
+        return 0
+    fi
+
+    install_package_if_available "libreoffice"
+    success "LibreOffice installation completed."
+}
+
 prepare_system() {
     log "Preparing system packages..."
 
@@ -453,6 +493,18 @@ verify_installation() {
         echo "[MISSING] zramctl: not found"
     fi
 
+    if command -v kdenlive >/dev/null 2>&1; then
+        echo "[OK] Kdenlive: $(kdenlive --version 2>/dev/null | head -n 1 || echo 'installed')"
+    else
+        echo "[MISSING] Kdenlive: not found"
+    fi
+
+    if command -v libreoffice >/dev/null 2>&1; then
+        echo "[OK] LibreOffice: $(libreoffice --version 2>/dev/null | head -n 1 || echo 'installed')"
+    else
+        echo "[MISSING] LibreOffice: not found"
+    fi
+
     echo
     echo "[INFO] Swap status:"
     swapon --show 2>/dev/null || echo "No active swap detected."
@@ -465,6 +517,8 @@ main() {
     local install_virtualbox=true
     local install_chrome=true
     local install_obs=true
+    local install_kdenlive_flag=true
+    local install_libreoffice_flag=true
     local verify_only=false
 
     while [[ $# -gt 0 ]]; do
@@ -483,6 +537,12 @@ main() {
                 ;;
             --skip-obs)
                 install_obs=false
+                ;;
+            --skip-kdenlive)
+                install_kdenlive_flag=false
+                ;;
+            --skip-libreoffice)
+                install_libreoffice_flag=false
                 ;;
             --verify)
                 verify_only=true
@@ -530,7 +590,7 @@ main() {
     log "Detected init system: ${INIT_SYSTEM}"
 
     prepare_system
-    apt_update
+    full_system_upgrade
 
     if [ "${install_zram}" = true ]; then
         configure_zram
@@ -560,6 +620,18 @@ main() {
         install_obs
     else
         warn "Skipping OBS Studio because --skip-obs was used."
+    fi
+
+    if [ "${install_kdenlive_flag}" = true ]; then
+        install_kdenlive
+    else
+        warn "Skipping Kdenlive because --skip-kdenlive was used."
+    fi
+
+    if [ "${install_libreoffice_flag}" = true ]; then
+        install_libreoffice
+    else
+        warn "Skipping LibreOffice because --skip-libreoffice was used."
     fi
 
     echo
