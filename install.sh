@@ -4,6 +4,8 @@ set -Eeuo pipefail
 export DEBIAN_FRONTEND=noninteractive
 export DEBIAN_PRIORITY=critical
 
+REPO_URL="https://github.com/rahibnahiyan-cyber/My-Personal"
+
 LOG_PREFIX="[INSTALL]"
 RED='\033[31m'
 GREEN='\033[32m'
@@ -32,10 +34,11 @@ fail() {
 }
 
 usage() {
-    cat <<'EOF'
+    cat <<EOF
 Usage: install.sh [options]
 
 This installer is designed ONLY for Kali Linux running XFCE, GNOME, or KDE Plasma.
+Repository: ${REPO_URL}
 
 Options:
   --skip-zram         Skip zram configuration
@@ -504,6 +507,8 @@ main() {
 
     echo
     success "All selected software installation steps completed successfully."
+    echo
+    echo "Repository: ${REPO_URL}"
     echo
     echo "Important:"
     echo "  - This installer is restricted to Kali Linux only."
