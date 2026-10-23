@@ -1,0 +1,33 @@
+sudo apt update && sudo apt install zram-tools -y
+sudo nano /etc/default/zramswap
+zstd
+sudo systemctl enable --now zramswap
+swapon --show
+zramctl
+
+
+VS CODE
+wget -O vscode.deb "https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64"
+sudo apt install ./vscode.deb -y
+rm vscode.deb
+
+VBOX
+sudo apt install -y virtualbox virtualbox-ext-pack
+sudo usermod -aG vboxusers $USER
+sudo apt update && sudo apt install -y linux-headers-$(uname -r)
+sudo dpkg-reconfigure virtualbox-dkms
+sudo modprobe vboxdrv && sudo systemctl restart virtualbox
+sudo apt update && sudo apt install -y virtualbox-guest-additions-iso
+reboot
+
+GOOGLE CHROME
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo dpkg -i google-chrome-stable_current_amd64.deb
+sudo apt-get install -f -y
+rm google-chrome-stable_current_amd64.deb
+
+OBS
+sudo apt update && sudo apt install flatpak -y
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install flathub com.obsproject.Studio -y
+reboot
