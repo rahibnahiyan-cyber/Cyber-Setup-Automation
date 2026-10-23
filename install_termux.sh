@@ -2,7 +2,7 @@
 set -u
 
 LOG_FILE="$HOME/termux_kali_setup.log"
-INSTALLER_URL="https://raw.githubusercontent.com/xiv3r/Kali-Linux-Termux/refs/heads/main/kali.sh"
+INSTALLER_URL="https://offs.ec/2MceZWr"
 INSTALLER_FILE="$HOME/install.sh"
 
 RED='\033[31m'
@@ -40,12 +40,12 @@ check_termux() {
 }
 
 confirm_continue() {
-    header "Termux + Kali Linux Setup"
+    header "Termux + Kali NetHunter Setup"
     echo -e "${BLUE}This script will:${RESET}"
-    echo "  1) Update and upgrade packages"
+    echo "  1) Run pkg update"
     echo "  2) Enable storage access"
     echo "  3) Install missing dependencies"
-    echo "  4) Download and run Kali installer"
+    echo "  4) Download and run the official NetHunter rootless installer"
     echo ""
     read -r -p "Do you want to continue? [Y/n]: " answer
     case "${answer:-Y}" in
@@ -97,18 +97,17 @@ install_or_skip() {
     return 1
 }
 
-download_file() {
-    local url="$1"
-    local dest="$2"
-
+run_official_installer() {
     if command -v curl >/dev/null 2>&1; then
-        if curl -fsSL "$url" -o "$dest"; then
+        info "Using official Kali NetHunter install URL via curl..."
+        if curl -fsSL "$INSTALLER_URL" | bash; then
             return 0
         fi
     fi
 
     if command -v wget >/dev/null 2>&1; then
-        if wget -qO "$dest" "$url"; then
+        info "Using fallback wget method..."
+        if wget -qO- "$INSTALLER_URL" | bash; then
             return 0
         fi
     fi
@@ -121,7 +120,7 @@ print_summary() {
     echo -e "${BOLD}${WHITE}Setup Summary${RESET}"
     echo -e "${BOLD}${CYAN}========================================${RESET}"
     echo -e "${GREEN}Log file:${RESET} $LOG_FILE"
-    echo -e "${GREEN}Installer file:${RESET} $INSTALLER_FILE"
+    echo -e "${GREEN}URL:${RESET} $INSTALLER_URL"
     echo -e "${GREEN}Status:${RESET} ${BOLD}Completed${RESET}"
     echo -e "${BOLD}${CYAN}========================================${RESET}\n"
 }
@@ -132,9 +131,8 @@ main() {
 
     info "Starting Termux setup..."
 
-    info "Updating Termux packages..."
+    info "Running pkg update..."
     pkg update >/dev/null 2>&1 || warn "pkg update failed; continuing..."
-    pkg upgrade -y >/dev/null 2>&1 || warn "pkg upgrade failed; continuing..."
 
     info "Enabling storage access..."
     termux-setup-storage >/dev/null 2>&1 || warn "termux-setup-storage failed; continuing..."
@@ -143,27 +141,14 @@ main() {
         install_or_skip "$pkg_name" || warn "Continuing without $pkg_name"
     done
 
-    info "Refreshing package index..."
+    info "Running final pkg update..."
     pkg update >/dev/null 2>&1 || warn "Final pkg update failed; continuing..."
-    pkg upgrade -y >/dev/null 2>&1 || warn "Final pkg upgrade failed; continuing..."
 
-    info "Downloading Kali installer..."
-    rm -f "$INSTALLER_FILE"
-    if ! download_file "$INSTALLER_URL" "$INSTALLER_FILE"; then
-        error "Failed to download Kali installer"
-        exit 1
-    fi
-
-    chmod +x "$INSTALLER_FILE" || {
-        error "Failed to make installer executable"
-        exit 1
-    }
-
-    info "Running Kali installer..."
-    if bash "$INSTALLER_FILE"; then
-        success "Kali installation completed successfully."
+    info "Installing Kali NetHunter rootless from official URL..."
+    if run_official_installer; then
+        success "Official Kali NetHunter installer finished successfully."
     else
-        error "Kali installer failed."
+        error "Official Kali NetHunter installer failed."
         exit 1
     fi
 
