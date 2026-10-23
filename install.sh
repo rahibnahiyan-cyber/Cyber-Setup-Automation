@@ -107,12 +107,21 @@ is_supported_desktop() {
     [ "${DE_NAME}" = "XFCE" ] || [ "${DE_NAME}" = "GNOME" ] || [ "${DE_NAME}" = "KDE Plasma" ]
 }
 
+is_package_installed() {
+    dpkg -s "$1" >/dev/null 2>&1
+}
+
 apt_package_exists() {
     apt-cache policy "$1" 2>/dev/null | grep -q "Candidate:" || apt-cache search --names-only "$1" 2>/dev/null | grep -qi "^${1}$"
 }
 
 install_package_if_available() {
     local pkg="$1"
+
+    if is_package_installed "${pkg}"; then
+        success "Package already installed, skipping: ${pkg}"
+        return 0
+    fi
 
     if ! apt_package_exists "${pkg}"; then
         warn "Package not available in this Kali repository: ${pkg}. Skipping."
@@ -144,7 +153,15 @@ install_packages() {
         return 0
     fi
 
-    log "Installing packages: ${packages[*]}"
+    for pkg in "${packages[@]}"; do
+        if is_package_installed "${pkg}"; then
+            success "Package already installed, skipping: ${pkg}"
+            continue
+        fi
+
+        log "Installing packages: ${pkg}"
+        break
+    done
 
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get install -y --no-install-recommends "${packages[@]}" || fail "Failed to install required packages: ${packages[*]}"
@@ -197,8 +214,26 @@ add_virtualbox_repo() {
     apt_update
 }
 
+zram_already_active() {
+    if command -v zramctl >/dev/null 2>&1; then
+        zramctl 2>/dev/null | grep -q 'zram' && return 0
+    fi
+    if swapon --show 2>/dev/null | grep -q '/dev/zram'; then
+        return 0
+    fi
+    if [ -f /etc/default/zramswap ] && grep -q '^ALGO=zstd' /etc/default/zramswap && grep -q '^PERCENT=50' /etc/default/zramswap; then
+        return 0
+    fi
+    return 1
+}
+
 configure_zram() {
     log "Configuring zram..."
+
+    if zram_already_active; then
+        success "zram is already configured and active. Skipping zram reconfiguration."
+        return 0
+    fi
 
     if ! command -v zramctl >/dev/null 2>&1; then
         warn "zramctl not found; zram-tools may still install successfully."
@@ -239,7 +274,7 @@ install_vscode() {
     log "Installing Visual Studio Code..."
 
     if command -v code >/dev/null 2>&1; then
-        success "VS Code is already installed."
+        success "VS Code is already installed. Skipping."
         return 0
     fi
 
@@ -252,7 +287,7 @@ install_virtualbox() {
     log "Installing VirtualBox..."
 
     if command -v virtualbox >/dev/null 2>&1 || dpkg -s virtualbox >/dev/null 2>&1; then
-        success "VirtualBox is already installed."
+        success "VirtualBox is already installed. Skipping."
         return 0
     fi
 
@@ -301,7 +336,7 @@ install_google_chrome() {
     log "Installing Google Chrome..."
 
     if command -v google-chrome >/dev/null 2>&1 || dpkg -s google-chrome-stable >/dev/null 2>&1; then
-        success "Google Chrome is already installed."
+        success "Google Chrome is already installed. Skipping."
         return 0
     fi
 
@@ -332,6 +367,11 @@ install_google_chrome() {
 
 install_obs() {
     log "Installing OBS Studio..."
+
+    if flatpak list --installed 2>/dev/null | grep -qi "com.obsproject.Studio"; then
+        success "OBS Studio is already installed. Skipping."
+        return 0
+    fi
 
     if ! command -v flatpak >/dev/null 2>&1; then
         install_package_if_available "flatpak"
