@@ -284,26 +284,33 @@ install_vscode() {
 }
 
 install_virtualbox() {
-    log "Installing VirtualBox..."
+    log "Installing VirtualBox full stack..."
 
     if command -v virtualbox >/dev/null 2>&1 || dpkg -s virtualbox >/dev/null 2>&1; then
-        success "VirtualBox is already installed. Skipping."
-        return 0
+        success "VirtualBox is already installed. Skipping base package."
+    else
+        install_package_if_available "build-essential"
+        install_package_if_available "dkms"
+        install_package_if_available "linux-headers-$(uname -r)"
+        install_package_if_available "wget"
+        install_package_if_available "curl"
+        install_package_if_available "gnupg"
+
+        add_virtualbox_repo
+
+        if [ -n "${SUDO}" ]; then
+            echo "virtualbox-ext-pack virtualbox-ext-pack/license select true" | ${SUDO} debconf-set-selections 2>/dev/null || true
+            ${SUDO} apt-get install -y --no-install-recommends virtualbox virtualbox-ext-pack || warn "VirtualBox package or extension pack could not be installed from the configured repo."
+        else
+            echo "virtualbox-ext-pack virtualbox-ext-pack/license select true" | debconf-set-selections 2>/dev/null || true
+            apt-get install -y --no-install-recommends virtualbox virtualbox-ext-pack || warn "VirtualBox package or extension pack could not be installed from the configured repo."
+        fi
     fi
 
-    install_package_if_available "build-essential"
-    install_package_if_available "dkms"
-    install_package_if_available "linux-headers-$(uname -r)"
-    install_package_if_available "wget"
-    install_package_if_available "curl"
-    install_package_if_available "gnupg"
-
-    add_virtualbox_repo
-
-    if [ -n "${SUDO}" ]; then
-        ${SUDO} apt-get install -y --no-install-recommends virtualbox || warn "VirtualBox package could not be installed from the configured repo."
+    if ! is_package_installed "virtualbox-guest-additions-iso"; then
+        install_package_if_available "virtualbox-guest-additions-iso"
     else
-        apt-get install -y --no-install-recommends virtualbox || warn "VirtualBox package could not be installed from the configured repo."
+        success "VirtualBox Guest Additions ISO already installed. Skipping."
     fi
 
     if getent group vboxusers >/dev/null 2>&1; then
@@ -329,7 +336,7 @@ install_virtualbox() {
         modprobe vboxdrv >/dev/null 2>&1 || warn "Unable to load the vboxdrv kernel module; a reboot may be required."
     fi
 
-    success "VirtualBox installation completed."
+    success "VirtualBox full stack installation completed."
 }
 
 install_google_chrome() {
