@@ -1,26 +1,17 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
 
-# =========================================================
-# Advanced Linux Tools Installer
-# Supports Debian/Ubuntu/Kali-based systems
-# ---------------------------------------------------------
-# Installs:
-# - zram-tools
-# - VS Code
-# - VirtualBox
-# - Google Chrome
-# - OBS Studio
-#
-# Reboot is intentionally NOT included.
-# =========================================================
+export DEBIAN_FRONTEND=noninteractive
+export DEBIAN_PRIORITY=critical
 
 LOG_PREFIX="[INSTALL]"
 RED='\033[31m'
 GREEN='\033[32m'
 YELLOW='\033[33m'
 BLUE='\033[34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
+
+ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
 
 log() {
     echo -e "${BLUE}${LOG_PREFIX} $1${NC}"
@@ -37,6 +28,22 @@ warn() {
 fail() {
     echo -e "${RED}${LOG_PREFIX} ERROR: $1${NC}" >&2
     exit 1
+}
+
+usage() {
+    cat <<'EOF'
+Usage: install.sh [options]
+
+Options:
+  --skip-zram         Skip zram configuration
+  --skip-vscode       Skip VS Code installation
+  --skip-virtualbox   Skip VirtualBox installation
+  --skip-chrome       Skip Google Chrome installation
+  --skip-obs          Skip OBS Studio installation
+  --help              Show this help
+
+This installer supports Debian, Ubuntu, and Kali Linux.
+EOF
 }
 
 require_root_or_sudo() {
@@ -57,22 +64,39 @@ detect_distro() {
         DISTRO_ID="${ID:-unknown}"
         DISTRO_NAME="${NAME:-Unknown Linux}"
         VERSION_ID="${VERSION_ID:-unknown}"
+        VERSION_CODENAME="${VERSION_CODENAME:-unknown}"
     else
         DISTRO_ID="unknown"
         DISTRO_NAME="Unknown Linux"
         VERSION_ID="unknown"
+        VERSION_CODENAME="unknown"
     fi
+}
+
+is_supported_distro() {
+    case "${DISTRO_ID}" in
+        debian|ubuntu|kali|linuxmint)
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
 }
 
 ensure_apt_available() {
     if ! command -v apt-get >/dev/null 2>&1; then
-        fail "This script requires apt-get (Debian/Ubuntu/Kali-based system)."
+        fail "This script requires apt-get on a Debian/Ubuntu/Kali-based system."
     fi
 }
 
 apt_update() {
     log "Updating package lists..."
-    ${SUDO} apt-get update -qq || fail "apt-get update failed."
+    if [ -n "${SUDO}" ]; then
+        ${SUDO} apt-get update -qq || fail "apt-get update failed."
+    else
+        apt-get update -qq || fail "apt-get update failed."
+    fi
 }
 
 install_packages() {
@@ -82,86 +106,190 @@ install_packages() {
     fi
 
     log "Installing packages: ${packages[*]}"
-    ${SUDO} apt-get install -y --no-install-recommends "${packages[@]}" \
-        || fail "Failed to install required packages: ${packages[*]}"
+    if [ -n "${SUDO}" ]; then
+        ${SUDO} apt-get install -y --no-install-recommends "${packages[@]}" || fail "Failed to install required packages: ${packages[*]}"
+    else
+        apt-get install -y --no-install-recommends "${packages[@]}" || fail "Failed to install required packages: ${packages[*]}"
+    fi
 }
 
 download_file() {
     local url="$1"
     local output="$2"
     log "Downloading: ${url}"
-    wget -O "${output}" "${url}" \
-        || fail "Download failed: ${url}"
+    if command -v curl >/dev/null 2>&1; then
+        curl -fL --retry 3 --retry-delay 2 --output "${output}" "${url}" || fail "Download failed: ${url}"
+    else
+        wget -O "${output}" "${url}" || fail "Download failed: ${url}"
+    fi
+}
+
+add_microsoft_repo() {
+    log "Configuring Microsoft repository for VS Code..."
+    mkdir -p /etc/apt/keyrings
+
+    if [ ! -f /etc/apt/keyrings/microsoft.gpg ]; then
+        curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor --yes -o /etc/apt/keyrings/microsoft.gpg
+    fi
+
+    local repo_file="/etc/apt/sources.list.d/vscode.list"
+    if [ ! -f "${repo_file}" ]; then
+        echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > "${repo_file}"
+    fi
+
+    apt_update
+}
+
+add_virtualbox_repo() {
+    log "Configuring VirtualBox repository..."
+    mkdir -p /etc/apt/keyrings
+
+    if [ ! -f /etc/apt/keyrings/oracle_vbox_2016.gpg ]; then
+        curl -fsSL https://www.virtualbox.org/download/oracle_vbox_2016.asc | gpg --dearmor --yes -o /etc/apt/keyrings/oracle_vbox_2016.gpg
+    fi
+
+    local repo_file="/etc/apt/sources.list.d/virtualbox.list"
+    if [ ! -f "${repo_file}" ]; then
+        echo "deb [arch=${ARCH} signed-by=/etc/apt/keyrings/oracle_vbox_2016.gpg] https://download.virtualbox.org/virtualbox/debian ${VERSION_CODENAME} contrib" > "${repo_file}"
+    fi
+
+    apt_update
 }
 
 configure_zram() {
     log "Configuring zram..."
+
     if ! command -v zramctl >/dev/null 2>&1; then
-        warn "zramctl not found. zram-tools may still install successfully."
+        warn "zramctl not found; zram-tools may still install successfully."
     fi
 
-    local zram_conf="/etc/default/zramswap"
-
-    if [ -f "${zram_conf}" ]; then
-        if ! grep -Eq '^[[:space:]]*ALGO[[:space:]]*=' "${zram_conf}" || ! grep -Eq 'ALGO=.*zstd' "${zram_conf}"; then
-            echo "ALGO=zstd" | ${SUDO} tee -a "${zram_conf}" >/dev/null
+    if [ -f /etc/systemd/zram-generator.conf ]; then
+        if ! grep -q "\[zram0\]" /etc/systemd/zram-generator.conf 2>/dev/null; then
+            cat <<'EOF' | tee /etc/systemd/zram-generator.conf >/dev/null
+[zram0]
+zram-size = min(ram / 2, 4096)
+compression-algorithm = zstd
+swap-priority = 100
+fs-type = swap
+EOF
         fi
     else
-        echo "ALGO=zstd" | ${SUDO} tee "${zram_conf}" >/dev/null
+        local zram_conf="/etc/default/zramswap"
+        if [ -f "${zram_conf}" ]; then
+            if ! grep -Eq '^[[:space:]]*ALGO[[:space:]]*=' "${zram_conf}" || ! grep -Eq 'ALGO=.*zstd' "${zram_conf}"; then
+                echo "ALGO=zstd" >> "${zram_conf}"
+            fi
+            if ! grep -Eq '^[[:space:]]*PERCENT[[:space:]]*=' "${zram_conf}"; then
+                echo "PERCENT=50" >> "${zram_conf}"
+            fi
+        else
+            cat <<'EOF' | tee "${zram_conf}" >/dev/null
+ALGO=zstd
+PERCENT=50
+EOF
+        fi
     fi
 
-    ${SUDO} systemctl enable --now zramswap 2>/dev/null || warn "zramswap service could not be enabled. It may not be available on this system."
+    if systemctl list-unit-files 2>/dev/null | grep -q '^zramswap.service'; then
+        if [ -n "${SUDO}" ]; then
+            ${SUDO} systemctl daemon-reload >/dev/null 2>&1 || true
+            ${SUDO} systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled."
+        else
+            systemctl daemon-reload >/dev/null 2>&1 || true
+            systemctl enable --now zramswap >/dev/null 2>&1 || warn "zramswap service could not be enabled."
+        fi
+    else
+        warn "zramswap service not present; zram config file was created but no service was started."
+    fi
+
     swapon --show 2>/dev/null || true
     zramctl 2>/dev/null || true
+    success "zram configuration applied."
 }
 
 install_vscode() {
     log "Installing Visual Studio Code..."
-    local tmp_deb="/tmp/vscode.deb"
-    local vscode_url="https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64"
 
-    download_file "${vscode_url}" "${tmp_deb}"
-    ${SUDO} apt-get install -y --no-install-recommends "${tmp_deb}" \
-        || fail "Failed to install VS Code package."
-    rm -f "${tmp_deb}"
+    if command -v code >/dev/null 2>&1; then
+        success "VS Code is already installed."
+        return 0
+    fi
+
+    add_microsoft_repo
+    install_packages "code"
     success "VS Code installation completed."
 }
 
 install_virtualbox() {
     log "Installing VirtualBox..."
-    install_packages "virtualbox" "virtualbox-ext-pack" "dkms"
 
-    # Ensure linux headers exist
-    local headers_pkg="linux-headers-$(uname -r)"
-    if ! dpkg -s "${headers_pkg}" >/dev/null 2>&1; then
-        install_packages "${headers_pkg}"
+    if command -v virtualbox >/dev/null 2>&1 || dpkg -s virtualbox >/dev/null 2>&1; then
+        success "VirtualBox is already installed."
+        return 0
     fi
 
-    # Add user to vboxusers group if not already
-    if id "${USER:-$(whoami)}" >/dev/null 2>&1; then
+    install_packages "build-essential" "dkms" "linux-headers-$(uname -r)" "wget" "curl" "gnupg"
+    add_virtualbox_repo
+
+    if [ -n "${SUDO}" ]; then
+        ${SUDO} apt-get install -y --no-install-recommends virtualbox || warn "VirtualBox package could not be installed from the configured repo."
+    else
+        apt-get install -y --no-install-recommends virtualbox || warn "VirtualBox package could not be installed from the configured repo."
+    fi
+
+    if getent group vboxusers >/dev/null 2>&1; then
         local current_user="${USER:-$(whoami)}"
         if ! id -nG "${current_user}" | tr ' ' '\n' | grep -qx "vboxusers"; then
-            ${SUDO} usermod -aG vboxusers "${current_user}" || warn "Could not add ${current_user} to vboxusers."
+            if [ -n "${SUDO}" ]; then
+                ${SUDO} usermod -aG vboxusers "${current_user}" || warn "Could not add ${current_user} to vboxusers."
+            else
+                usermod -aG vboxusers "${current_user}" || warn "Could not add ${current_user} to vboxusers."
+            fi
+        fi
+    else
+        if [ -n "${SUDO}" ]; then
+            ${SUDO} groupadd -f vboxusers
+        else
+            groupadd -f vboxusers
         fi
     fi
 
-    ${SUDO} dpkg-reconfigure virtualbox-dkms >/dev/null 2>&1 || warn "virtualbox-dkms reconfiguration skipped or unavailable."
-    ${SUDO} modprobe vboxdrv 2>/dev/null || warn "Unable to load vboxdrv module. Reboot may be required."
-    ${SUDO} systemctl restart virtualbox 2>/dev/null || warn "VirtualBox service restart skipped or unsupported on this system."
-    install_packages "virtualbox-guest-additions-iso"
+    if [ -n "${SUDO}" ]; then
+        ${SUDO} modprobe vboxdrv >/dev/null 2>&1 || warn "Unable to load the vboxdrv kernel module; a reboot may be required."
+    else
+        modprobe vboxdrv >/dev/null 2>&1 || warn "Unable to load the vboxdrv kernel module; a reboot may be required."
+    fi
+
     success "VirtualBox installation completed."
 }
 
 install_google_chrome() {
     log "Installing Google Chrome..."
+
+    if command -v google-chrome >/dev/null 2>&1 || dpkg -s google-chrome-stable >/dev/null 2>&1; then
+        success "Google Chrome is already installed."
+        return 0
+    fi
+
+    if [ "${ARCH}" != "amd64" ]; then
+        fail "Google Chrome installer currently supports amd64 architecture only. Detected: ${ARCH}"
+    fi
+
     local chrome_deb="/tmp/google-chrome-stable.deb"
     local chrome_url="https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb"
 
     download_file "${chrome_url}" "${chrome_deb}"
 
-    if ! ${SUDO} dpkg -i "${chrome_deb}" >/tmp/chrome-install.log 2>&1; then
-        warn "dpkg install reported errors; attempting dependency fix..."
-        ${SUDO} apt-get install -f -y --no-install-recommends || fail "Unable to resolve Chrome dependencies."
+    if [ -n "${SUDO}" ]; then
+        ${SUDO} apt-get install -y --no-install-recommends "${chrome_deb}" || {
+            warn "Chrome package install reported an issue; fixing dependencies..."
+            ${SUDO} apt-get install -f -y --no-install-recommends || fail "Unable to resolve Chrome dependencies."
+        }
+    else
+        apt-get install -y --no-install-recommends "${chrome_deb}" || {
+            warn "Chrome package install reported an issue; fixing dependencies..."
+            apt-get install -f -y --no-install-recommends || fail "Unable to resolve Chrome dependencies."
+        }
     fi
 
     rm -f "${chrome_deb}"
@@ -170,19 +298,65 @@ install_google_chrome() {
 
 install_obs() {
     log "Installing OBS Studio..."
-    install_packages "flatpak"
 
-    if ! flatpak remote-list | grep -q "flathub"; then
-        ${SUDO} flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo \
-            || warn "Failed to add Flathub remote. Continuing..."
+    if command -v flatpak >/dev/null 2>&1; then
+        :
+    else
+        install_packages "flatpak"
     fi
 
-    flatpak install -y flathub com.obsproject.Studio \
-        || fail "Failed to install OBS Studio via Flatpak."
+    if ! flatpak remote-list 2>/dev/null | grep -q "flathub"; then
+        if [ -n "${SUDO}" ]; then
+            ${SUDO} flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || warn "Failed to add Flathub remote. Continuing..."
+        else
+            flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo || warn "Failed to add Flathub remote. Continuing..."
+        fi
+    fi
+
+    flatpak install -y flathub com.obsproject.Studio || fail "Failed to install OBS Studio via Flatpak."
     success "OBS Studio installation completed."
 }
 
+prepare_system() {
+    log "Preparing system packages..."
+    install_packages "wget" "curl" "ca-certificates" "gnupg" "software-properties-common" "lsb-release" "apt-transport-https"
+}
+
 main() {
+    local install_zram=true
+    local install_vscode=true
+    local install_virtualbox=true
+    local install_chrome=true
+    local install_obs=true
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --skip-zram)
+                install_zram=false
+                ;;
+            --skip-vscode)
+                install_vscode=false
+                ;;
+            --skip-virtualbox)
+                install_virtualbox=false
+                ;;
+            --skip-chrome)
+                install_chrome=false
+                ;;
+            --skip-obs)
+                install_obs=false
+                ;;
+            --help)
+                usage
+                exit 0
+                ;;
+            *)
+                fail "Unknown option: $1"
+                ;;
+        esac
+        shift
+    done
+
     echo
     echo "=============================================="
     echo "  Debian/Ubuntu/Kali Linux Tool Installer"
@@ -193,35 +367,41 @@ main() {
     detect_distro
     ensure_apt_available
 
-    log "Detected OS: ${DISTRO_NAME} (${DISTRO_ID} ${VERSION_ID})"
+    if ! is_supported_distro; then
+        fail "Unsupported distribution: ${DISTRO_NAME} (${DISTRO_ID}). Supported: Debian, Ubuntu, Kali, Linux Mint."
+    fi
 
+    log "Detected OS: ${DISTRO_NAME} (${DISTRO_ID} ${VERSION_ID})"
+    prepare_system
     apt_update
 
-    # Common essentials
-    install_packages "wget" "curl" "ca-certificates" "gnupg" "software-properties-common"
+    if [ "${install_zram}" = true ]; then
+        install_packages "zram-tools"
+        configure_zram
+    fi
 
-    # 1. zram-tools
-    install_packages "zram-tools"
-    configure_zram
+    if [ "${install_vscode}" = true ]; then
+        install_vscode
+    fi
 
-    # 2. VS Code
-    install_vscode
+    if [ "${install_virtualbox}" = true ]; then
+        install_virtualbox
+    fi
 
-    # 3. VirtualBox
-    install_virtualbox
+    if [ "${install_chrome}" = true ]; then
+        install_google_chrome
+    fi
 
-    # 4. Google Chrome
-    install_google_chrome
-
-    # 5. OBS Studio
-    install_obs
+    if [ "${install_obs}" = true ]; then
+        install_obs
+    fi
 
     echo
-    success "All requested software installation steps completed successfully."
+    success "All selected software installation steps completed successfully."
     echo
     echo "Important:"
-    echo "  - Reboot is intentionally not performed automatically."
-    echo "  - Please reboot manually when you're ready."
+    echo "  - Reboot is intentionally not executed automatically."
+    echo "  - Please reboot manually when appropriate."
     echo
     echo "Example:"
     echo "  sudo reboot"
