@@ -5,8 +5,12 @@ export DEBIAN_FRONTEND=noninteractive
 export DEBIAN_PRIORITY=critical
 
 REPO_URL="https://github.com/rahibnahiyan-cyber/My-Personal"
-
 LOG_PREFIX="[INSTALL]"
+LOG_FILE="/var/log/kali-setup.log"
+PROFILE="full"
+DRY_RUN=false
+VERIFY_ONLY=false
+
 RED='\033[31m'
 GREEN='\033[32m'
 YELLOW='\033[33m'
@@ -16,21 +20,54 @@ NC='\033[0m'
 ARCH="$(dpkg --print-architecture 2>/dev/null || uname -m)"
 INIT_SYSTEM="$(ps -p 1 -o comm= 2>/dev/null | tr -d '[:space:]' || echo unknown)"
 
+INSTALL_SUCCESS_COUNT=0
+INSTALL_SKIP_COUNT=0
+INSTALL_FAIL_COUNT=0
+declare -a FAILED_TASKS=()
+declare -a SKIPPED_TASKS=()
+
+mkdir -p "$(dirname "${LOG_FILE}")" 2>/dev/null || true
+: > "${LOG_FILE}" 2>/dev/null || true
+
+cleanup() {
+    rm -f /tmp/google-chrome-stable.deb 2>/dev/null || true
+    rm -f /tmp/virtualbox-*.iso 2>/dev/null || true
+    rm -f /tmp/obs-flatpak.* 2>/dev/null || true
+}
+trap cleanup EXIT
+
 log() {
-    echo -e "${BLUE}${LOG_PREFIX} $1${NC}"
+    local msg="$1"
+    echo -e "${BLUE}${LOG_PREFIX} ${msg}${NC}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ${LOG_PREFIX} ${msg}" >> "${LOG_FILE}"
 }
 
 success() {
-    echo -e "${GREEN}${LOG_PREFIX} $1${NC}"
+    local msg="$1"
+    echo -e "${GREEN}${LOG_PREFIX} ${msg}${NC}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ${LOG_PREFIX} ${msg}" >> "${LOG_FILE}"
+    INSTALL_SUCCESS_COUNT=$((INSTALL_SUCCESS_COUNT + 1))
 }
 
 warn() {
-    echo -e "${YELLOW}${LOG_PREFIX} WARNING: $1${NC}"
+    local msg="$1"
+    echo -e "${YELLOW}${LOG_PREFIX} WARNING: ${msg}${NC}"
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ${LOG_PREFIX} WARNING: ${msg}" >> "${LOG_FILE}"
 }
 
 fail() {
-    echo -e "${RED}${LOG_PREFIX} ERROR: $1${NC}" >&2
+    local msg="$1"
+    echo -e "${RED}${LOG_PREFIX} ERROR: ${msg}${NC}" >&2
+    echo "$(date '+%Y-%m-%d %H:%M:%S') ${LOG_PREFIX} ERROR: ${msg}" >> "${LOG_FILE}"
+    FAILED_TASKS+=("${msg}")
+    INSTALL_FAIL_COUNT=$((INSTALL_FAIL_COUNT + 1))
     exit 1
+}
+
+skip_task() {
+    local task="$1"
+    SKIPPED_TASKS+=("${task}")
+    INSTALL_SKIP_COUNT=$((INSTALL_SKIP_COUNT + 1))
 }
 
 show_running_processes() {
@@ -41,42 +78,6 @@ show_running_processes() {
     echo "=============================================="
     ps -eo pid,ppid,comm,%cpu,%mem,etime --sort=-%cpu 2>/dev/null | head -n 20 || echo "No process information available."
     echo
-}
-
-repository_update_check() {
-    if ! command -v git >/dev/null 2>&1; then
-        warn "git is not installed; skipping repository update check."
-        return 0
-    fi
-
-    if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
-        warn "The script is not running inside a git repository; skipping repository update check."
-        return 0
-    fi
-
-    local repo_root
-    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
-    if [ -z "${repo_root}" ]; then
-        warn "Unable to determine repository root; skipping repository update check."
-        return 0
-    fi
-
-    log "Checking repository updates in: ${repo_root}"
-    show_running_processes "Before repo update check"
-
-    if git -C "${repo_root}" remote get-url origin >/dev/null 2>&1; then
-        local current_branch
-        current_branch="$(git -C "${repo_root}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")"
-        if git -C "${repo_root}" pull --ff-only --quiet origin "${current_branch}"; then
-            success "Repository update check completed successfully."
-        else
-            warn "Repository update check failed or local changes prevented a fast-forward pull. Continuing with the current files."
-        fi
-    else
-        warn "No git remote 'origin' found; skipping repository update check."
-    fi
-
-    show_running_processes "After repo update check"
 }
 
 usage() {
@@ -95,6 +96,8 @@ Options:
   --skip-kdenlive     Skip Kdenlive installation
   --skip-libreoffice  Skip LibreOffice installation
   --verify            Run verification checks only
+  --dry-run           Show what would be installed without executing
+  --profile <name>   Choose profile: full, minimal, media, cyber
   --help              Show this help
 EOF
 }
@@ -167,8 +170,65 @@ apt_package_exists() {
     apt-cache policy "$1" 2>/dev/null | grep -q "Candidate:" || apt-cache search --names-only "$1" 2>/dev/null | grep -qi "^${1}$"
 }
 
+repo_sync() {
+    if ! command -v git >/dev/null 2>&1; then
+        warn "git is not installed; skipping repository sync."
+        skip_task "repo_sync"
+        return 0
+    fi
+
+    if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+        warn "The script is not running inside a git repository; skipping repository sync."
+        skip_task "repo_sync"
+        return 0
+    fi
+
+    local repo_root
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+    if [ -z "${repo_root}" ]; then
+        warn "Unable to determine repository root; skipping repository sync."
+        skip_task "repo_sync"
+        return 0
+    fi
+
+    if ! git -C "${repo_root}" remote get-url origin >/dev/null 2>&1; then
+        warn "No git remote 'origin' found; skipping repository sync."
+        skip_task "repo_sync"
+        return 0
+    fi
+
+    if [ -n "$(git -C "${repo_root}" status --porcelain 2>/dev/null)" ]; then
+        warn "Local changes detected; skipping automatic repository pull to avoid overwriting your work."
+        skip_task "repo_sync"
+        return 0
+    fi
+
+    log "Checking repository updates in: ${repo_root}"
+    show_running_processes "Before repo sync"
+
+    git -C "${repo_root}" fetch --all --prune --quiet || {
+        warn "git fetch failed; continuing without repo update."
+        skip_task "repo_sync"
+        return 0
+    }
+
+    if git -C "${repo_root}" merge --ff-only @{u} >/dev/null 2>&1; then
+        success "Repository sync completed successfully."
+    else
+        warn "Fast-forward merge was not possible. Continuing with the current local version."
+        skip_task "repo_sync"
+    fi
+
+    show_running_processes "After repo sync"
+}
+
 install_package_if_available() {
     local pkg="$1"
+
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install package: ${pkg}"
+        return 0
+    fi
 
     if is_package_installed "${pkg}"; then
         success "Package already installed, skipping: ${pkg}"
@@ -177,6 +237,7 @@ install_package_if_available() {
 
     if ! apt_package_exists "${pkg}"; then
         warn "Package not available in this Kali repository: ${pkg}. Skipping."
+        skip_task "install:${pkg}"
         return 0
     fi
 
@@ -193,6 +254,12 @@ apt_update() {
     log "Updating package lists..."
     show_running_processes "Before apt update"
 
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would run: apt-get update -qq"
+        show_running_processes "After apt update (dry-run)"
+        return 0
+    fi
+
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get update -qq || fail "apt-get update failed."
     else
@@ -205,6 +272,12 @@ apt_update() {
 full_system_upgrade() {
     log "Running full system upgrade..."
     show_running_processes "Before full upgrade"
+
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would run: apt-get full-upgrade -y --no-install-recommends"
+        show_running_processes "After full upgrade (dry-run)"
+        return 0
+    fi
 
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get update -qq || fail "apt-get update failed."
@@ -221,6 +294,11 @@ full_system_upgrade() {
 install_packages() {
     local packages=("$@")
     if [ ${#packages[@]} -eq 0 ]; then
+        return 0
+    fi
+
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install: ${packages[*]}"
         return 0
     fi
 
@@ -250,6 +328,12 @@ download_file() {
     local output="$2"
     log "Downloading: ${url}"
     show_running_processes "Downloading ${url}"
+
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would download: ${url} to ${output}"
+        show_running_processes "Download finished: ${url} (dry-run)"
+        return 0
+    fi
 
     if command -v curl >/dev/null 2>&1; then
         curl -fL --retry 3 --retry-delay 2 --output "${output}" "${url}" || fail "Download failed: ${url}"
@@ -309,6 +393,12 @@ configure_zram() {
     log "Configuring zram..."
     show_running_processes "Before zram configuration"
 
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would configure zram-tools and zramswap"
+        show_running_processes "zram configuration (dry-run)"
+        return 0
+    fi
+
     if zram_already_active; then
         success "zram is already configured and active. Skipping zram reconfiguration."
         show_running_processes "zram already active"
@@ -355,6 +445,12 @@ install_vscode() {
     log "Installing Visual Studio Code..."
     show_running_processes "Before VS Code install"
 
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install VS Code"
+        show_running_processes "VS Code install (dry-run)"
+        return 0
+    fi
+
     if command -v code >/dev/null 2>&1; then
         success "VS Code is already installed. Skipping."
         show_running_processes "VS Code already installed"
@@ -370,6 +466,12 @@ install_vscode() {
 install_virtualbox() {
     log "Installing VirtualBox full stack..."
     show_running_processes "Before VirtualBox install"
+
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install VirtualBox and guest additions"
+        show_running_processes "VirtualBox install (dry-run)"
+        return 0
+    fi
 
     if command -v virtualbox >/dev/null 2>&1 || dpkg -s virtualbox >/dev/null 2>&1; then
         success "VirtualBox is already installed. Skipping base package."
@@ -430,6 +532,12 @@ install_google_chrome() {
     log "Installing Google Chrome..."
     show_running_processes "Before Chrome install"
 
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install Google Chrome"
+        show_running_processes "Chrome install (dry-run)"
+        return 0
+    fi
+
     if command -v google-chrome >/dev/null 2>&1 || dpkg -s google-chrome-stable >/dev/null 2>&1; then
         success "Google Chrome is already installed. Skipping."
         show_running_processes "Chrome already installed"
@@ -466,6 +574,12 @@ install_obs() {
     log "Installing OBS Studio..."
     show_running_processes "Before OBS install"
 
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install OBS Studio via Flatpak"
+        show_running_processes "OBS install (dry-run)"
+        return 0
+    fi
+
     if flatpak list --installed 2>/dev/null | grep -qi "com.obsproject.Studio"; then
         success "OBS Studio is already installed. Skipping."
         show_running_processes "OBS already installed"
@@ -497,6 +611,12 @@ install_kdenlive() {
     log "Installing Kdenlive..."
     show_running_processes "Before Kdenlive install"
 
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install Kdenlive"
+        show_running_processes "Kdenlive install (dry-run)"
+        return 0
+    fi
+
     if is_package_installed "kdenlive"; then
         success "Kdenlive is already installed. Skipping."
         show_running_processes "Kdenlive already installed"
@@ -512,6 +632,12 @@ install_libreoffice() {
     log "Installing LibreOffice..."
     show_running_processes "Before LibreOffice install"
 
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install LibreOffice"
+        show_running_processes "LibreOffice install (dry-run)"
+        return 0
+    fi
+
     if is_package_installed "libreoffice"; then
         success "LibreOffice is already installed. Skipping."
         show_running_processes "LibreOffice already installed"
@@ -526,6 +652,12 @@ install_libreoffice() {
 prepare_system() {
     log "Preparing system packages..."
     show_running_processes "Before system prep"
+
+    if [ "${DRY_RUN}" = true ]; then
+        log "[DRY-RUN] Would install: wget curl ca-certificates gnupg lsb-release software-properties-common apt-transport-https"
+        show_running_processes "After system prep (dry-run)"
+        return 0
+    fi
 
     for pkg in wget curl ca-certificates gnupg lsb-release; do
         install_package_if_available "${pkg}"
@@ -544,54 +676,99 @@ verify_installation() {
     echo "=============================================="
     echo
 
-    if command -v code >/dev/null 2>&1; then
-        echo "[OK] VS Code: $(code --version | head -n 1)"
-    else
-        echo "[MISSING] VS Code: not found"
-    fi
+    local ok_count=0
+    local total=0
 
-    if command -v google-chrome >/dev/null 2>&1; then
-        echo "[OK] Google Chrome: $(google-chrome --version 2>/dev/null || echo 'installed')"
-    else
-        echo "[MISSING] Google Chrome: not found"
-    fi
+    verify_item() {
+        local label="$1"
+        local check_cmd="$2"
+        total=$((total + 1))
+        if eval "${check_cmd}" >/dev/null 2>&1; then
+            echo "[OK] ${label}"
+            ok_count=$((ok_count + 1))
+        else
+            echo "[MISSING] ${label}"
+        fi
+    }
 
-    if command -v VBoxManage >/dev/null 2>&1; then
-        echo "[OK] VirtualBox: $(VBoxManage --version 2>/dev/null || echo 'installed')"
-    else
-        echo "[MISSING] VirtualBox: not found"
-    fi
-
-    if flatpak list --installed 2>/dev/null | grep -qi "com.obsproject.Studio"; then
-        echo "[OK] OBS Studio: installed"
-    else
-        echo "[MISSING] OBS Studio: not found"
-    fi
-
-    if command -v zramctl >/dev/null 2>&1; then
-        echo "[OK] zramctl:"
-        zramctl 2>/dev/null || true
-    else
-        echo "[MISSING] zramctl: not found"
-    fi
-
-    if command -v kdenlive >/dev/null 2>&1; then
-        echo "[OK] Kdenlive: $(kdenlive --version 2>/dev/null | head -n 1 || echo 'installed')"
-    else
-        echo "[MISSING] Kdenlive: not found"
-    fi
-
-    if command -v libreoffice >/dev/null 2>&1; then
-        echo "[OK] LibreOffice: $(libreoffice --version 2>/dev/null | head -n 1 || echo 'installed')"
-    else
-        echo "[MISSING] LibreOffice: not found"
-    fi
+    verify_item "VS Code" "command -v code"
+    verify_item "Google Chrome" "command -v google-chrome"
+    verify_item "VirtualBox" "command -v VBoxManage"
+    verify_item "OBS Studio" "flatpak list --installed 2>/dev/null | grep -qi 'com.obsproject.Studio'"
+    verify_item "zramctl" "command -v zramctl"
+    verify_item "Kdenlive" "command -v kdenlive"
+    verify_item "LibreOffice" "command -v libreoffice"
 
     echo
-    echo "[INFO] Swap status:"
-    swapon --show 2>/dev/null || echo "No active swap detected."
-    echo
+    echo "Verification summary: ${ok_count}/${total} checks passed."
     show_running_processes "Verification final state"
+}
+
+show_summary() {
+    echo
+    echo "=============================================="
+    echo "  Install Summary"
+    echo "=============================================="
+    echo
+    echo "Status: ${INSTALL_SUCCESS_COUNT} success, ${INSTALL_SKIP_COUNT} skipped, ${INSTALL_FAIL_COUNT} failed"
+    echo "Log file: ${LOG_FILE}"
+
+    if [ ${#SKIPPED_TASKS[@]} -gt 0 ]; then
+        echo
+        echo "Skipped tasks:"
+        for task in "${SKIPPED_TASKS[@]}"; do
+            echo "  - ${task}"
+        done
+    fi
+
+    if [ ${#FAILED_TASKS[@]} -gt 0 ]; then
+        echo
+        echo "Failed tasks:"
+        for task in "${FAILED_TASKS[@]}"; do
+            echo "  - ${task}"
+        done
+    fi
+
+    echo
+}
+
+process_profile() {
+    case "${PROFILE}" in
+        full)
+            return 0
+            ;;
+        minimal)
+            # only essential items; skip heavy apps
+            SKIP_ZRAM=false
+            SKIP_VSCODE=false
+            SKIP_VIRTUALBOX=true
+            SKIP_CHROME=false
+            SKIP_OBS=true
+            SKIP_KDENLIVE=true
+            SKIP_LIBREOFFICE=true
+            ;;
+        media)
+            SKIP_ZRAM=false
+            SKIP_VSCODE=false
+            SKIP_VIRTUALBOX=false
+            SKIP_CHROME=false
+            SKIP_OBS=false
+            SKIP_KDENLIVE=false
+            SKIP_LIBREOFFICE=true
+            ;;
+        cyber)
+            SKIP_ZRAM=false
+            SKIP_VSCODE=false
+            SKIP_VIRTUALBOX=false
+            SKIP_CHROME=true
+            SKIP_OBS=true
+            SKIP_KDENLIVE=true
+            SKIP_LIBREOFFICE=true
+            ;;
+        *)
+            fail "Unsupported profile: ${PROFILE}. Use one of: full, minimal, media, cyber."
+            ;;
+    esac
 }
 
 main() {
@@ -602,7 +779,6 @@ main() {
     local install_obs=true
     local install_kdenlive_flag=true
     local install_libreoffice_flag=true
-    local verify_only=false
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -628,7 +804,17 @@ main() {
                 install_libreoffice_flag=false
                 ;;
             --verify)
-                verify_only=true
+                VERIFY_ONLY=true
+                ;;
+            --dry-run)
+                DRY_RUN=true
+                ;;
+            --profile)
+                if [ $# -lt 2 ]; then
+                    fail "--profile requires a value."
+                fi
+                PROFILE="$2"
+                shift
                 ;;
             --help)
                 usage
@@ -641,7 +827,7 @@ main() {
         shift
     done
 
-    if [ "${verify_only}" = true ]; then
+    if [ "${VERIFY_ONLY}" = true ]; then
         require_root_or_sudo
         detect_distro
         detect_desktop_environment
@@ -674,55 +860,70 @@ main() {
     log "Detected init system: ${INIT_SYSTEM}"
     show_running_processes "Startup state"
 
-    repository_update_check
+    process_profile
+
+    if [ "${PROFILE}" != "full" ] || [ "${DRY_RUN}" = true ]; then
+        log "Selected profile: ${PROFILE}"
+    fi
+
+    if [ "${PROFILE}" = "full" ] && [ "${DRY_RUN}" = false ]; then
+        repo_sync
+    else
+        warn "Skipping repo sync because dry-run or non-full profile is active."
+    fi
+
     prepare_system
+    apt_update
     full_system_upgrade
 
-    if [ "${install_zram}" = true ]; then
+    if [ "${install_zram}" = true ] && [ "${SKIP_ZRAM:-false}" != "true" ]; then
         configure_zram
     else
-        warn "Skipping zram configuration because --skip-zram was used."
+        warn "Skipping zram configuration because --skip-zram was used or the selected profile excludes it."
     fi
 
-    if [ "${install_vscode}" = true ]; then
+    if [ "${install_vscode}" = true ] && [ "${SKIP_VSCODE:-false}" != "true" ]; then
         install_vscode
     else
-        warn "Skipping VS Code because --skip-vscode was used."
+        warn "Skipping VS Code because --skip-vscode was used or the selected profile excludes it."
     fi
 
-    if [ "${install_virtualbox}" = true ]; then
+    if [ "${install_virtualbox}" = true ] && [ "${SKIP_VIRTUALBOX:-false}" != "true" ]; then
         install_virtualbox
     else
-        warn "Skipping VirtualBox because --skip-virtualbox was used."
+        warn "Skipping VirtualBox because --skip-virtualbox was used or the selected profile excludes it."
     fi
 
-    if [ "${install_chrome}" = true ]; then
+    if [ "${install_chrome}" = true ] && [ "${SKIP_CHROME:-false}" != "true" ]; then
         install_google_chrome
     else
-        warn "Skipping Google Chrome because --skip-chrome was used."
+        warn "Skipping Google Chrome because --skip-chrome was used or the selected profile excludes it."
     fi
 
-    if [ "${install_obs}" = true ]; then
+    if [ "${install_obs}" = true ] && [ "${SKIP_OBS:-false}" != "true" ]; then
         install_obs
     else
-        warn "Skipping OBS Studio because --skip-obs was used."
+        warn "Skipping OBS Studio because --skip-obs was used or the selected profile excludes it."
     fi
 
-    if [ "${install_kdenlive_flag}" = true ]; then
+    if [ "${install_kdenlive_flag}" = true ] && [ "${SKIP_KDENLIVE:-false}" != "true" ]; then
         install_kdenlive
     else
-        warn "Skipping Kdenlive because --skip-kdenlive was used."
+        warn "Skipping Kdenlive because --skip-kdenlive was used or the selected profile excludes it."
     fi
 
-    if [ "${install_libreoffice_flag}" = true ]; then
+    if [ "${install_libreoffice_flag}" = true ] && [ "${SKIP_LIBREOFFICE:-false}" != "true" ]; then
         install_libreoffice
     else
-        warn "Skipping LibreOffice because --skip-libreoffice was used."
+        warn "Skipping LibreOffice because --skip-libreoffice was used or the selected profile excludes it."
     fi
 
     echo
     success "All selected software installation steps completed successfully."
     show_running_processes "Final installation state"
+    verify_installation
+    show_summary
+
     echo
     echo "Repository: ${REPO_URL}"
     echo
@@ -730,6 +931,7 @@ main() {
     echo "  - This installer is restricted to Kali Linux only."
     echo "  - Reboot is intentionally not executed automatically."
     echo "  - Please reboot manually when appropriate."
+    echo "  - Log file: ${LOG_FILE}"
     echo
     echo "Example:"
     echo "  sudo reboot"
