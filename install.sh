@@ -33,6 +33,16 @@ fail() {
     exit 1
 }
 
+show_running_processes() {
+    local label="${1:-Current}"
+    echo
+    echo "=============================================="
+    echo "  Running Processes: ${label}"
+    echo "=============================================="
+    ps -eo pid,ppid,comm,%cpu,%mem,etime --sort=-%cpu 2>/dev/null | head -n 20 || echo "No process information available."
+    echo
+}
+
 usage() {
     cat <<EOF
 Usage: install.sh [options]
@@ -145,16 +155,20 @@ ensure_apt_available() {
 
 apt_update() {
     log "Updating package lists..."
+    show_running_processes "Before apt update"
 
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get update -qq || fail "apt-get update failed."
     else
         apt-get update -qq || fail "apt-get update failed."
     fi
+
+    show_running_processes "After apt update"
 }
 
 full_system_upgrade() {
     log "Running full system upgrade..."
+    show_running_processes "Before full upgrade"
 
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get update -qq || fail "apt-get update failed."
@@ -164,6 +178,7 @@ full_system_upgrade() {
         apt-get full-upgrade -y --no-install-recommends || fail "apt-get full-upgrade failed."
     fi
 
+    show_running_processes "After full upgrade"
     success "Full system upgrade completed."
 }
 
@@ -183,23 +198,30 @@ install_packages() {
         break
     done
 
+    show_running_processes "During package install: ${packages[*]}"
+
     if [ -n "${SUDO}" ]; then
         ${SUDO} apt-get install -y --no-install-recommends "${packages[@]}" || fail "Failed to install required packages: ${packages[*]}"
     else
         apt-get install -y --no-install-recommends "${packages[@]}" || fail "Failed to install required packages: ${packages[*]}"
     fi
+
+    show_running_processes "After package install: ${packages[*]}"
 }
 
 download_file() {
     local url="$1"
     local output="$2"
     log "Downloading: ${url}"
+    show_running_processes "Downloading ${url}"
 
     if command -v curl >/dev/null 2>&1; then
         curl -fL --retry 3 --retry-delay 2 --output "${output}" "${url}" || fail "Download failed: ${url}"
     else
         wget -O "${output}" "${url}" || fail "Download failed: ${url}"
     fi
+
+    show_running_processes "Download finished: ${url}"
 }
 
 add_microsoft_repo() {
@@ -249,9 +271,11 @@ zram_already_active() {
 
 configure_zram() {
     log "Configuring zram..."
+    show_running_processes "Before zram configuration"
 
     if zram_already_active; then
         success "zram is already configured and active. Skipping zram reconfiguration."
+        show_running_processes "zram already active"
         return 0
     fi
 
@@ -287,27 +311,33 @@ configure_zram() {
 
     swapon --show 2>/dev/null || true
     zramctl 2>/dev/null || true
+    show_running_processes "After zram configuration"
     success "zram configuration applied."
 }
 
 install_vscode() {
     log "Installing Visual Studio Code..."
+    show_running_processes "Before VS Code install"
 
     if command -v code >/dev/null 2>&1; then
         success "VS Code is already installed. Skipping."
+        show_running_processes "VS Code already installed"
         return 0
     fi
 
     add_microsoft_repo
     install_package_if_available "code"
+    show_running_processes "After VS Code install"
     success "VS Code installation completed."
 }
 
 install_virtualbox() {
     log "Installing VirtualBox full stack..."
+    show_running_processes "Before VirtualBox install"
 
     if command -v virtualbox >/dev/null 2>&1 || dpkg -s virtualbox >/dev/null 2>&1; then
         success "VirtualBox is already installed. Skipping base package."
+        show_running_processes "VirtualBox already installed"
     else
         install_package_if_available "build-essential"
         install_package_if_available "dkms"
@@ -356,14 +386,17 @@ install_virtualbox() {
         modprobe vboxdrv >/dev/null 2>&1 || warn "Unable to load the vboxdrv kernel module; a reboot may be required."
     fi
 
+    show_running_processes "After VirtualBox install"
     success "VirtualBox full stack installation completed."
 }
 
 install_google_chrome() {
     log "Installing Google Chrome..."
+    show_running_processes "Before Chrome install"
 
     if command -v google-chrome >/dev/null 2>&1 || dpkg -s google-chrome-stable >/dev/null 2>&1; then
         success "Google Chrome is already installed. Skipping."
+        show_running_processes "Chrome already installed"
         return 0
     fi
 
@@ -389,14 +422,17 @@ install_google_chrome() {
     fi
 
     rm -f "${chrome_deb}"
+    show_running_processes "After Chrome install"
     success "Google Chrome installation completed."
 }
 
 install_obs() {
     log "Installing OBS Studio..."
+    show_running_processes "Before OBS install"
 
     if flatpak list --installed 2>/dev/null | grep -qi "com.obsproject.Studio"; then
         success "OBS Studio is already installed. Skipping."
+        show_running_processes "OBS already installed"
         return 0
     fi
 
@@ -414,6 +450,7 @@ install_obs() {
         fi
 
         flatpak install -y flathub com.obsproject.Studio || fail "Failed to install OBS Studio via Flatpak."
+        show_running_processes "After OBS install"
         success "OBS Studio installation completed."
     else
         warn "Flatpak is not available on this Kali system; skipping OBS Studio installation."
@@ -422,30 +459,37 @@ install_obs() {
 
 install_kdenlive() {
     log "Installing Kdenlive..."
+    show_running_processes "Before Kdenlive install"
 
     if is_package_installed "kdenlive"; then
         success "Kdenlive is already installed. Skipping."
+        show_running_processes "Kdenlive already installed"
         return 0
     fi
 
     install_package_if_available "kdenlive"
+    show_running_processes "After Kdenlive install"
     success "Kdenlive installation completed."
 }
 
 install_libreoffice() {
     log "Installing LibreOffice..."
+    show_running_processes "Before LibreOffice install"
 
     if is_package_installed "libreoffice"; then
         success "LibreOffice is already installed. Skipping."
+        show_running_processes "LibreOffice already installed"
         return 0
     fi
 
     install_package_if_available "libreoffice"
+    show_running_processes "After LibreOffice install"
     success "LibreOffice installation completed."
 }
 
 prepare_system() {
     log "Preparing system packages..."
+    show_running_processes "Before system prep"
 
     for pkg in wget curl ca-certificates gnupg lsb-release; do
         install_package_if_available "${pkg}"
@@ -453,6 +497,8 @@ prepare_system() {
 
     install_package_if_available "software-properties-common"
     install_package_if_available "apt-transport-https"
+
+    show_running_processes "After system prep"
 }
 
 verify_installation() {
@@ -509,6 +555,7 @@ verify_installation() {
     echo "[INFO] Swap status:"
     swapon --show 2>/dev/null || echo "No active swap detected."
     echo
+    show_running_processes "Verification final state"
 }
 
 main() {
@@ -562,6 +609,7 @@ main() {
         require_root_or_sudo
         detect_distro
         detect_desktop_environment
+        show_running_processes "Verification mode startup"
         verify_installation
         exit 0
     fi
@@ -588,6 +636,7 @@ main() {
     log "Detected OS: ${DISTRO_NAME} (${DISTRO_ID} ${VERSION_ID})"
     log "Detected desktop environment: ${DE_NAME}"
     log "Detected init system: ${INIT_SYSTEM}"
+    show_running_processes "Startup state"
 
     prepare_system
     full_system_upgrade
@@ -636,6 +685,7 @@ main() {
 
     echo
     success "All selected software installation steps completed successfully."
+    show_running_processes "Final installation state"
     echo
     echo "Repository: ${REPO_URL}"
     echo
