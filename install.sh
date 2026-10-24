@@ -43,6 +43,42 @@ show_running_processes() {
     echo
 }
 
+repository_update_check() {
+    if ! command -v git >/dev/null 2>&1; then
+        warn "git is not installed; skipping repository update check."
+        return 0
+    fi
+
+    if ! git rev-parse --show-toplevel >/dev/null 2>&1; then
+        warn "The script is not running inside a git repository; skipping repository update check."
+        return 0
+    fi
+
+    local repo_root
+    repo_root="$(git rev-parse --show-toplevel 2>/dev/null || echo "")"
+    if [ -z "${repo_root}" ]; then
+        warn "Unable to determine repository root; skipping repository update check."
+        return 0
+    fi
+
+    log "Checking repository updates in: ${repo_root}"
+    show_running_processes "Before repo update check"
+
+    if git -C "${repo_root}" remote get-url origin >/dev/null 2>&1; then
+        local current_branch
+        current_branch="$(git -C "${repo_root}" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "HEAD")"
+        if git -C "${repo_root}" pull --ff-only --quiet origin "${current_branch}"; then
+            success "Repository update check completed successfully."
+        else
+            warn "Repository update check failed or local changes prevented a fast-forward pull. Continuing with the current files."
+        fi
+    else
+        warn "No git remote 'origin' found; skipping repository update check."
+    fi
+
+    show_running_processes "After repo update check"
+}
+
 usage() {
     cat <<EOF
 Usage: install.sh [options]
@@ -638,6 +674,7 @@ main() {
     log "Detected init system: ${INIT_SYSTEM}"
     show_running_processes "Startup state"
 
+    repository_update_check
     prepare_system
     full_system_upgrade
 
