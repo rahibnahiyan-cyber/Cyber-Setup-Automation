@@ -7,7 +7,8 @@ The main workflow is simple:
 ```bash
 git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
 cd Cyber-Setup-Automation
-bash install.sh
+chmod +x install.sh
+sudo ./install.sh
 ```
 
 This repo is meant to help with:
@@ -69,22 +70,36 @@ The main install script is:
 
 This script is designed for Kali Linux and helps automate the setup of a working cybersecurity environment, including system packages and common tools.
 
+Important:
+
+- The script must be executable before running.
+- Use `sudo` because the installer installs packages and modifies system configuration.
+
 ### Usage
 
 ```bash
 git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
 cd Cyber-Setup-Automation
+chmod +x install.sh
+sudo ./install.sh
+```
+
+Alternative:
+
+```bash
 bash install.sh
 ```
+
+If you run it without `sudo` and without root privileges, the script will detect this and require proper permission.
 
 ### Useful Options
 
 ```bash
-bash install.sh --help
-bash install.sh --verify
-bash install.sh --skip-vscode
-bash install.sh --skip-chrome
-bash install.sh --skip-virtualbox
+./install.sh --help
+./install.sh --verify
+./install.sh --skip-vscode
+./install.sh --skip-chrome
+./install.sh --skip-virtualbox
 ```
 
 ## 2) Wallpaper Setup
@@ -134,7 +149,8 @@ These files are maintained and updated regularly as my learning progresses.
 ```bash
 git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
 cd Cyber-Setup-Automation
-bash install.sh
+chmod +x install.sh
+sudo ./install.sh
 ```
 
 Then:
