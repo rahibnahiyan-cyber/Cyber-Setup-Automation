@@ -1,35 +1,37 @@
 # 🔐 Cyber Setup Automation
 
-This repository is created for setting up a fresh Kali Linux machine on a new PC and automating the environment for cybersecurity learning, system customization, and ethical hacking practice.
+This repository is my personal backup and setup kit for a fresh OS installation. Whenever I install a new operating system, I can clone this repository and instantly download all the scripts, wallpapers, tools, and learning files I use for cybersecurity and programming work.
 
-The main workflow is simple:
+The main idea is simple:
 
-```bash
-git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
-cd Cyber-Setup-Automation
-chmod +x install.sh
-sudo ./install.sh
-```
-
-This repo is meant to help with:
-
-- fresh Kali Linux installation and base setup
-- desktop environment configuration
-- software installation and system automation
-- wallpaper collection and customization
-- ethical hacking learning practice
-- Python scripting and web security exercises
+- install a new OS
+- clone this repo
+- download my setup files and learning materials
+- continue from the same workflow without losing my environment
 
 ## Purpose
 
-This project is built for personal cybersecurity workflow automation. Whenever I set up a new Kali Linux machine, I can clone this repository, run the installer, and get a ready-to-use environment for security testing and learning.
+This repo is designed for:
 
-It also includes personal practice folders for:
+- fresh Kali Linux / Linux setup automation
+- personal cybersecurity environment configuration
+- wallpaper collection and system customization
+- ethical hacking learning and practice
+- Python and scripting exercises
+- web security and authentication testing
+- keeping all useful files in one place for future installations
 
-- `programming-test/` — Python and scripting practice
-- `web-test/` — web security and session/auth testing practice
+## Why this repo is useful
 
-These two folders will be updated regularly as part of my ethical hacking learning journey.
+If I reinstall an OS or set up a new machine, I can reuse this repository instead of searching through different folders or losing my notes and scripts. Everything needed for my daily setup and learning workflow can live here.
+
+This means:
+
+- I can quickly restore my environment
+- I can keep my cybersecurity setup scripts together
+- I can store ethical hacking practice files here
+- I can keep programming practice files here as well
+- I can download everything whenever needed from GitHub
 
 ## Repository Structure
 
@@ -46,36 +48,27 @@ Cyber-Setup-Automation/
 │   └── ...
 ├── programming-test/
 │   ├── practice.py
-│   └── __pycache__/
-└── web-test/
-    └── auth-session-lab/
-        ├── server.py
-        ├── run_all_tests.py
-        ├── test_admin_access.py
-        ├── test_invalid_login.py
-        ├── test_logout.py
-        ├── test_profile_access.py
-        ├── test_security_headers.py
-        ├── test_session_rotation.py
-        ├── test_session_timeout.py
-        ├── timeout_check.py
-        └── cookies.txt
+│   └── ...
+├── web-test/
+│   └── auth-session-lab/
+│       ├── server.py
+│       ├── run_all_tests.py
+│       ├── test_admin_access.py
+│       ├── test_invalid_login.py
+│       ├── test_logout.py
+│       ├── test_profile_access.py
+│       ├── test_security_headers.py
+│       ├── test_session_rotation.py
+│       ├── test_session_timeout.py
+│       ├── timeout_check.py
+│       └── cookies.txt
+└── future-learning-files/
+    └── (ethical hacking, notes, scripts, and programming files will be added here)
 ```
 
-## 1) Kali Linux Setup
+## 1) New OS Setup
 
-The main install script is:
-
-- `install.sh`
-
-This script is designed for Kali Linux and helps automate the setup of a working cybersecurity environment, including system packages and common tools.
-
-Important:
-
-- The script must be executable before running.
-- Use `sudo` because the installer installs packages and modifies system configuration.
-
-### Usage
+When I install a fresh OS, I can use this repository as my main backup and setup archive.
 
 ```bash
 git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
@@ -84,79 +77,69 @@ chmod +x install.sh
 sudo ./install.sh
 ```
 
-Alternative:
+This helps me quickly restore my environment with:
 
-```bash
-bash install.sh
-```
+- Linux setup scripts
+- system packages
+- wallpapers
+- security tools
+- personal automation config
 
-If you run it without `sudo` and without root privileges, the script will detect this and require proper permission.
+## 2) Wallpaper and System Customization
 
-### Useful Options
+The `Wallpaper/` directory contains themes and wallpapers for personalizing the desktop environment after installation.
 
-```bash
-./install.sh --help
-./install.sh --verify
-./install.sh --skip-vscode
-./install.sh --skip-chrome
-./install.sh --skip-virtualbox
-```
-
-## 2) Wallpaper Setup
-
-The `Wallpaper/` directory contains multiple wallpaper images for Kali Linux customization.
-
-After installing the OS, I can select a wallpaper from this folder to personalize the desktop environment.
-
-This helps make the system feel more comfortable and aligned with a cyber/security aesthetic.
+These files are kept here so I can re-download and reuse them on any new machine.
 
 ## 3) Programming Practice
 
 The `programming-test/` folder is used for:
 
 - Python learning
-- scripting exercises
-- logic testing
+- scripting practice
 - automation experiments
+- logic and coding exercises
 
-Current file:
+This folder is meant for personal programming growth and skill development.
 
-- `programming-test/practice.py`
+## 4) Ethical Hacking and Web Security Practice
 
-This section will be updated regularly as part of my coding and security practice.
-
-## 4) Web Testing / Ethical Hacking Practice
-
-The `web-test/` folder contains security labs for learning about:
+The `web-test/` folder contains practice labs focused on:
 
 - authentication flows
 - authorization checks
 - session handling
-- logout behaviors
+- logout behavior
 - security headers
-- session rotation and timeout
+- session timeout and rotation
+- basic web security testing
 
-The main lab is:
+This section is kept for ethical hacking learning and safe security practice.
 
-- `web-test/auth-session-lab/`
+## 5) Download and Reuse Anytime
 
-This folder is meant for ethical hacking learning and practical web security testing.
+This repository acts as my personal archive for all important setup and learning files.
 
-These files are maintained and updated regularly as my learning progresses.
+I can:
 
-## 5) Quick Start
+- clone it on a new machine
+- download all scripts and files from here
+- keep practicing programming and cybersecurity here
+- maintain a clean central workspace for future OS installs
+
+## 6) Quick Start
 
 ```bash
 git clone https://github.com/rahibnahiyan-cyber/Cyber-Setup-Automation.git
 cd Cyber-Setup-Automation
-chmod +x install.sh
-sudo ./install.sh
+ls
 ```
 
 Then:
 
+- open the setup files for installation
 - choose a wallpaper from `Wallpaper/`
-- use `programming-test/` for scripting practice
+- use `programming-test/` for coding practice
 - use `web-test/` for ethical hacking and web security learning
 
 ## License
@@ -167,15 +150,14 @@ This project is licensed under the terms described in the `LICENSE` file.
 
 For security-related concerns, refer to `SECURITY.md`.
 
-## Notes
+## Final Note
 
-This repository is intended for:
+This repository is not just for OS setup. It is also a personal learning archive for:
 
-- Kali Linux setup automation
-- personal cybersecurity environment setup
-- wallpaper customization
-- ethical hacking education
-- Python and shell scripting practice
-- regular web security learning updates
+- ethical hacking
+- cybersecurity practice
+- programming exercises
+- Linux automation
+- personal security workflow
 
-This project continues to evolve as a personal toolkit for cyber setup, practice, and learning.
+My goal is to keep everything organized in one place so that I can restore and continue my work anytime, on any machine.
