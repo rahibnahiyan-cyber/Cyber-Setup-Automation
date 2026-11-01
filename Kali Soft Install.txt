@@ -35,4 +35,4 @@ flatpak install flathub com.obsproject.Studio -y
 flatpak uninstall com.obsproject.Studio -y
 flatpak uninstall --unused -y
 
-sudo apt install kdenlive libreoffice s-tui intel-gpu-tools vlc htop obs-studio mintstick -y
+sudo apt install kdenlive libreoffice s-tui intel-gpu-tools vlc htop obs-studio mintstick gnome-disk-utility -y
