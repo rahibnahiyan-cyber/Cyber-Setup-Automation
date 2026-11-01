@@ -1,0 +1,36 @@
+sudo apt update && sudo apt install zram-tools -y
+sudo nano /etc/default/zramswap
+zstd
+sudo systemctl restart zramswap
+sudo systemctl enable zramswap
+zramctl
+
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+sudo apt install ./google-chrome-stable_current_amd64.deb -y
+rm google-chrome-stable_current_amd64.deb
+
+wget -O "$HOME/Downloads/freedownloadmanager.deb" "https://files2.freedownloadmanager.org/6/latest/freedownloadmanager.deb"
+sudo apt install "$HOME/Downloads/freedownloadmanager.deb" -y
+rm "$HOME/Downloads/freedownloadmanager.deb"
+
+sudo apt update
+sudo apt install -y dkms build-essential linux-headers-$(uname -r)
+sudo apt install -y virtualbox virtualbox-qt
+sudo apt install -y virtualbox-ext-pack
+sudo apt install -y virtualbox-guest-additions-iso
+sudo usermod -aG vboxusers $USER
+
+sudo apt update && sudo apt install curl gpg apt-transport-https -y
+curl -fSsL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor | sudo tee /usr/share/keyrings/vscode.gpg > /dev/null
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/vscode.gpg] https://packages.microsoft.com/repos/code stable main" | sudo tee /etc/apt/sources.list.d/vscode.list
+sudo apt update
+sudo apt install code -y
+code --install-extension ms-python.python
+code --install-extension mads-hartmann.bash-ide-vscode
+code --install-extension esbenp.prettier-vscode
+
+sudo apt update && sudo apt install flatpak -y
+flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+flatpak install flathub com.obsproject.Studio -y
+
+sudo apt install kdenlive libreoffice s-tui intel-gpu-tools vlc htop -y
