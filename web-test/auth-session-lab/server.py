@@ -46,6 +46,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; base-uri 'self'; form-action 'self'; "
+            "frame-ancestors 'none'; object-src 'none'"
+        )
         super().end_headers()
 
     def get_valid_session(self):
@@ -86,7 +91,9 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
             self.wfile.write(b"""
+                <!DOCTYPE html>
                 <h1>Login Lab</h1>
+                <script src="https://example.invalid/test.js"></script>
                 <form method="POST" action="/login">
                     <input name="username" placeholder="Username">
                     <input name="password" type="password"
@@ -108,6 +115,17 @@ class Handler(BaseHTTPRequestHandler):
             )
 
             self.wfile.write(output.encode())
+
+        elif self.path == "/test.js":
+            self.send_response(200)
+            self.send_header(
+                "Content-Type",
+                "application/javascript"
+            )
+            self.end_headers()
+            self.wfile.write(
+                b'console.log("LOCAL SCRIPT ALLOWED BY CSP");'
+            )
 
         elif self.path == "/logout":
             
