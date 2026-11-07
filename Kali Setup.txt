@@ -36,3 +36,11 @@ flatpak uninstall com.obsproject.Studio -y
 flatpak uninstall --unused -y
 
 sudo apt install kdenlive libreoffice s-tui intel-gpu-tools vlc htop obs-studio mintstick gnome-disk-utility torbrowser-launcher  -y
+
+
+Run these command bellow if needed:-
+
+sudo apt update
+sudo apt install build-essential linux-headers-$(uname -r) dkms
+sudo apt install --reinstall virtualbox-dkms virtualbox-qt
+sudo modprobe vboxdrv
