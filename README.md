@@ -1,40 +1,25 @@
-# Cyber Setup Automation
+# Lab Setup
 
-A personal Kali Linux setup automation repository for preparing a cyber-focused workstation, organizing tools, practicing web security exercises, and keeping setup notes in one place.
+A personal Kali Linux setup and learning repository. It collects a Kali workstation setup checklist, desktop wallpapers, a small Python practice script, and a local web authentication/session testing lab.
 
-This repository combines environment setup scripts, personal project folders, wallpaper assets, and security testing exercises for learning and experimentation.
+> **Scope:** The web tests are for learning in a local, controlled environment. Only test systems and accounts that you own or have explicit permission to assess.
 
-## Overview
-
-The project is designed to help with:
-
-- Installing and configuring Kali Linux tools and software
-- Organizing a cyber-themed desktop environment
-- Saving custom wallpaper and visual assets
-- Practicing programming and Python scripts
-- Testing authentication and session security concepts in a local lab
-- Keeping setup notes and experiments centralized
-
-## Repository Structure
+## Repository contents
 
 ```text
-Cyber-Setup-Automation/
+.
+├── Kali Setup.txt                 # Kali package and workstation setup commands
+├── LICENSE                        # MIT License
 ├── README.md
-├── LICENSE
-├── SECURITY.md
-├── Kali Setup.txt
+├── SECURITY.md                    # Security reporting guidance
 ├── Projects/
 │   └── New Folder/
-├── Wallpaper/
-│   ├── 01.jpg
-│   ├── 02.jpg
-│   ├── Kali nethunter Image.jpg
-│   └── ...
+│       └── domain.txt             # Empty placeholder
+├── Wallpaper/                     # Desktop wallpaper and image assets
 ├── programming-test/
-│   ├── practice.py
-│   └── __pycache__/
+│   └── practice.py                # Python practice file
 └── web-test/
-    └── auth-session-lab/
+    └── auth-session-lab/          # Local authentication/session lab and test artifacts
         ├── server.py
         ├── server_before_delete_lab.py
         ├── server_before_idor.py
@@ -48,64 +33,29 @@ Cyber-Setup-Automation/
         ├── test_session_rotation.py
         ├── test_session_timeout.py
         ├── timeout_check.py
-        ├── cookies.txt
-        └── ...
+        └── *.txt                  # Cookie/session and test notes
 ```
 
-## Included Files
+## What's here
 
-### Kali Setup.txt
-Contains a personal installation checklist for setting up a Kali-based machine. It includes package installations for:
+### Kali setup checklist
 
-- zram support
-- Google Chrome
-- Free Download Manager
-- VirtualBox and guest additions
-- VS Code and useful extensions
-- Flatpak support
-- Multimedia and system tools
-- Tor Browser and related utilities
+[`Kali Setup.txt`](Kali%20Setup.txt) contains commands and notes for configuring a Kali workstation. Topics include zram, Google Chrome, Free Download Manager, VirtualBox, Visual Studio Code and extensions, Flatpak, and desktop/system utilities. Review the commands and package sources before running them; adapt them to your system.
 
-### Projects/
-A folder for personal project work and experiments.
+### Wallpaper
 
-### Wallpaper/
-A collection of cyber, hacker, terminal, and dark-themed wallpapers used for desktop customization.
+`Wallpaper/` contains image assets for desktop customization, including Kali, terminal, and cyber-themed wallpapers.
 
-### programming-test/
-Contains Python learning and practice files, including simple script experimentation.
+### Python practice
 
-### web-test/auth-session-lab/
-A security-focused local web testing lab for studying:
+`programming-test/practice.py` is a small Python practice file.
 
-- authentication flows
-- session fixation and session management
-- logout behavior
-- privilege checks and access control
-- security headers
-- session timeout and rotation
-- IDOR and update/delete lab scenarios
+### Local authentication/session lab
 
-## Purpose of the Repository
+`web-test/auth-session-lab/` contains a Python server, test scripts, earlier lab server versions, and text files used as test artifacts. The scripts cover authentication and invalid login behavior, logout, profile/admin access checks, security headers, session rotation, and timeout checks. The lab also includes scenarios relating to update/delete behavior and insecure direct object references (IDOR).
 
-This repo acts as a personal cyber setup and learning environment, combining:
+Run or inspect the lab only in an isolated local environment, and verify its configuration before starting the server or tests.
 
-- OS setup automation
-- security testing lab notes
-- desktop customization assets
-- Python practice files
-- project organization
+## License and security
 
-## Notes
-
-- This repository is personal and intended for learning, experimentation, and workflow organization.
-- Use the included security lab only in authorized and controlled environments.
-- The project is centered around Kali Linux, Python, and web security practice.
-
-## License
-
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
-## Security Policy
-
-Please review [SECURITY.md](SECURITY.md) for the repository security policy and reporting guidance.
+This project is available under the [MIT License](LICENSE). For security reporting guidance, see [SECURITY.md](SECURITY.md).
